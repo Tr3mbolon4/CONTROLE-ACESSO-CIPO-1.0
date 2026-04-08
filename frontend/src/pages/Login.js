@@ -55,7 +55,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-black/80" />
         <div className="relative z-10 flex flex-col justify-center px-12">
           <h1 className="text-4xl font-semibold text-white mb-4 font-['Outfit']">
-            Controle de Acesso
+            CIPOLATTI
           </h1>
           <p className="text-gray-400 text-lg max-w-md">
             Sistema de gerenciamento de portaria para registro e controle de visitantes, frota, funcionários e diretoria.
@@ -67,11 +67,13 @@ const Login = () => {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-[#141414] border border-[#262626] rounded-md flex items-center justify-center">
-              <ShieldCheck size={28} weight="duotone" className="text-white" />
-            </div>
+            <img 
+              src="https://customer-assets.emergentagent.com/job_portaria-acesso/artifacts/cligmmqg_icone%20cipo.png" 
+              alt="CIPOLATTI" 
+              className="w-12 h-12 rounded-full object-cover"
+            />
             <div>
-              <h2 className="text-2xl font-semibold text-white font-['Outfit']">Portaria</h2>
+              <h2 className="text-2xl font-semibold text-white font-['Outfit']">CIPOLATTI</h2>
               <p className="text-sm text-gray-500">Sistema de Controle de Acesso</p>
             </div>
           </div>

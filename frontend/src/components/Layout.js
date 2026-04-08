@@ -11,8 +11,7 @@ import {
   Gear,
   SignOut,
   List,
-  X,
-  ShieldCheck
+  X
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import {
@@ -73,11 +72,13 @@ const Layout = () => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-[#262626]">
-            <div className="w-10 h-10 bg-[#141414] border border-[#262626] rounded-md flex items-center justify-center">
-              <ShieldCheck size={24} weight="duotone" className="text-white" />
-            </div>
+            <img 
+              src="https://customer-assets.emergentagent.com/job_portaria-acesso/artifacts/cligmmqg_icone%20cipo.png" 
+              alt="CIPOLATTI" 
+              className="w-10 h-10 rounded-full object-cover"
+            />
             <div>
-              <h1 className="text-lg font-semibold text-white font-['Outfit']">Portaria</h1>
+              <h1 className="text-lg font-semibold text-white font-['Outfit']">CIPOLATTI</h1>
               <p className="text-xs text-gray-500">Controle de Acesso</p>
             </div>
             <button 
