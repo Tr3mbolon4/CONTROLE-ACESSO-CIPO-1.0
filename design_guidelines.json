@@ -1,0 +1,117 @@
+{
+  "project_name": "Controle de Acesso para Portaria",
+  "theme": "dark",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) + Tactical Control Room",
+  "colors": {
+    "background": "#0A0A0A",
+    "surface": "#141414",
+    "surface_hover": "#1F1F1F",
+    "border": "#262626",
+    "border_focus": "#3B82F6",
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A3A3A3",
+      "muted": "#737373",
+      "inverse": "#000000"
+    },
+    "brand": {
+      "primary": "#FFFFFF",
+      "primary_hover": "#E5E5E5",
+      "accent": "#3B82F6",
+      "accent_hover": "#2563EB"
+    },
+    "status": {
+      "success": "#22C55E",
+      "success_bg": "rgba(34, 197, 94, 0.1)",
+      "error": "#EF4444",
+      "error_bg": "rgba(239, 68, 68, 0.1)",
+      "warning": "#F59E0B",
+      "warning_bg": "rgba(245, 158, 11, 0.1)",
+      "info": "#3B82F6",
+      "info_bg": "rgba(59, 130, 246, 0.1)"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "heading": "Outfit, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "mono": "IBM Plex Mono, monospace"
+    },
+    "rules": {
+      "h1": "text-4xl sm:text-5xl font-semibold tracking-tight text-white",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight text-white",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight text-white",
+      "h4": "text-lg sm:text-xl font-medium tracking-tight text-white",
+      "body": "text-base text-gray-400 font-normal leading-relaxed",
+      "small": "text-sm text-gray-500",
+      "overline": "text-xs font-semibold uppercase tracking-[0.2em] text-gray-500",
+      "data_numbers": "font-mono text-white tracking-wider"
+    },
+    "pairing_strategy": "Authority and clarity. Outfit for modern, clean headers. IBM Plex Sans for readable dense data. IBM Plex Mono for license plates, time logs, and numeric IDs."
+  },
+  "spacing_and_layout": {
+    "strategy": "Control Room Grid",
+    "container_padding": "p-6 sm:p-8 md:p-12",
+    "gap_strategy": "gap-4 sm:gap-6",
+    "grid_modes": {
+      "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4",
+      "forms": "grid-cols-1 md:grid-cols-2 gap-6"
+    },
+    "alignment": "Strict geometric alignment. Use h-full on bento children so they stretch to fill rows. Left-align dense tabular data."
+  },
+  "surface_strategies": {
+    "dashboard_cards": "Flat solid surfaces (bg-[#141414]) with 1px solid border (border-[#262626]). No soft shadows. Sharp and tactical look (rounded-md).",
+    "header_nav": "Solid background (bg-[#0A0A0A]) with a hard bottom border (border-b border-[#262626]). No glassmorphism to keep it strictly functional and legible.",
+    "modals_dialogs": "Flat dark surface (bg-[#141414]) with a subtle 1px border and a dark overlay (bg-black/80 backdrop-blur-sm).",
+    "inputs": "bg-[#0A0A0A] border border-[#262626] focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] text-white transition-colors"
+  },
+  "components": {
+    "buttons": "Flat, text-sm font-medium, rounded-md. Primary: bg-white text-black hover:bg-gray-200. Secondary: bg-[#141414] border border-[#262626] text-white hover:bg-[#1F1F1F].",
+    "tables": "Shadcn tables. Dense spacing (py-2 instead of py-4). Hover states on rows (hover:bg-[#141414]). Data cells left-aligned. License plates strictly in monospace badge.",
+    "badges": "Flat background with 10% opacity of status color, 1px solid border of status color, and text of status color. Example: bg-green-500/10 border-green-500 text-green-500.",
+    "forms": "Shadcn forms. Use select for dropdowns, calendar for dates. Labels must be gray-400, inputs must have high contrast text.",
+    "tabs": "Shadcn tabs. Override height if needed. active tab: bg-[#262626] text-white, inactive: text-gray-400 hover:text-gray-200."
+  },
+  "motion_and_interactions": {
+    "hover_states": "Crisp color changes (e.g., border-[#262626] to border-[#737373]). No scaling/bouncing (keep it tactical).",
+    "focus_states": "High contrast ring (focus:ring-2 focus:ring-[#3B82F6]).",
+    "transitions": "transition-colors duration-200 ease-in-out."
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "Regular or Duotone for dense dashboards. Use solid for active states.",
+    "installation": "yarn add @phosphor-icons/react"
+  },
+  "image_urls": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1694702722584-05adc8802e28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBkYXJrJTIwYnVpbGRpbmclMjBleHRlcmlvcnxlbnwwfHx8fDE3NzU2NjYzMTV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Black and white photo of a tall modern building. Use with heavy dark overlay (bg-black/80) for the login screen background."
+    },
+    "fleet_car_1": {
+      "url": "https://images.unsplash.com/photo-1560879052-0cccc41ec8fb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwxfHx3aGl0ZSUyMGRlbGl2ZXJ5JTIwdmFufGVufDB8fHx8MTc3NTY2NjMxNXww&ixlib=rb-4.1.0&q=85",
+      "description": "White delivery van. Use as demo data for the 'Frota/Carros da Empresa' photo gallery feature."
+    },
+    "fleet_car_2": {
+      "url": "https://images.pexels.com/photos/32976307/pexels-photo-32976307.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Another white delivery van. Use as secondary demo data for fleet."
+    },
+    "person_1": {
+      "url": "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxjb3Jwb3JhdGUlMjBoZWFkc2hvdHxlbnwwfHx8fDE3NzU2NjYzMTV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Corporate woman headshot. Use for Employee/Visitor demo profile picture."
+    },
+    "person_2": {
+      "url": "https://images.unsplash.com/photo-1560250097-0b93528c311a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBoZWFkc2hvdHxlbnwwfHx8fDE3NzU2NjYzMTV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Corporate man headshot. Use for Director/Driver demo profile picture."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the Dark Theme precisely. Do not use pure white backgrounds anywhere except for Primary Call-To-Action buttons.",
+    "Implement a Sidebar layout for navigation (Visão Geral, Visitantes, Frota, Funcionários, Diretoria, Configurações). Sidebar should be bg-[#0A0A0A] and main content area bg-[#141414] or vice versa to create depth without borders everywhere.",
+    "Use Shadcn UI components extensively (Tables for logs, Dialogs for rapid registration, Tabs for switching views). Override their default white backgrounds with the dark theme colors provided.",
+    "For the 'Frota' module, implement a photo gallery grid for vehicles. Use the provided fleet_car image URLs as mock data.",
+    "Ensure all data tables (Visitors, Fleet, Employees) have high contrast. Use IBM Plex Mono for License Plates (Placas) and Times/Dates.",
+    "Add 'data-testid' attributes to all interactive elements (buttons, inputs, menu items, table rows). Example: data-testid='register-visitor-button'.",
+    "Status indicators (Access Granted, Pending, Exited) must use the defined status colors with text and a 10% opacity background of the same color for badges.",
+    "Install Google Fonts for Outfit (Headings), IBM Plex Sans (Body), and IBM Plex Mono (Monospace) in the main index.css or tailwind config."
+  ]
+}
