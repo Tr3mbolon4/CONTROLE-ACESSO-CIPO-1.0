@@ -89,6 +89,25 @@ export const directorsAPI = {
   delete: (id) => api.delete(`/directors/${id}`),
 };
 
+// Carregamentos
+export const carregamentosAPI = {
+  list: (params) => api.get('/carregamentos', { params }),
+  get: (id) => api.get(`/carregamentos/${id}`),
+  create: (data) => api.post('/carregamentos', data),
+  update: (id, data) => api.put(`/carregamentos/${id}`, data),
+  delete: (id) => api.delete(`/carregamentos/${id}`),
+};
+
+// Agendamentos
+export const agendamentosAPI = {
+  list: (params) => api.get('/agendamentos', { params }),
+  listHoje: () => api.get('/agendamentos/hoje'),
+  get: (id) => api.get(`/agendamentos/${id}`),
+  create: (data) => api.post('/agendamentos', data),
+  update: (id, data) => api.put(`/agendamentos/${id}`, data),
+  delete: (id) => api.delete(`/agendamentos/${id}`),
+};
+
 // Dashboard
 export const dashboardAPI = {
   get: () => api.get('/dashboard'),
@@ -105,6 +124,7 @@ export const reportsAPI = {
   fleet: (params) => api.get('/reports/fleet', { params }),
   employees: (params) => api.get('/reports/employees', { params }),
   directors: (params) => api.get('/reports/directors', { params }),
+  carregamentos: (params) => api.get('/reports/carregamentos', { params }),
 };
 
 export default api;

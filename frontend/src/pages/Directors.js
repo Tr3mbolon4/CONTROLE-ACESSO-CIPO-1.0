@@ -8,7 +8,9 @@ import {
   Trash, 
   Eye,
   SignOut,
-  Printer
+  Printer,
+  Coffee,
+  ArrowUDownLeft
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -37,6 +39,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -106,13 +114,39 @@ const Directors = () => {
     }
   };
 
-  const handleRegisterExit = async (director) => {
+  const handleSaidaAlmoco = async (director) => {
+    try {
+      const now = new Date();
+      await directorsAPI.update(director.id, {
+        hora_saida_almoco: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      });
+      toast.success('Saída para almoço registrada');
+      loadDirectors();
+    } catch (error) {
+      toast.error('Erro ao registrar saída para almoço');
+    }
+  };
+
+  const handleRetornoAlmoco = async (director) => {
+    try {
+      const now = new Date();
+      await directorsAPI.update(director.id, {
+        hora_retorno_almoco: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      });
+      toast.success('Retorno do almoço registrado');
+      loadDirectors();
+    } catch (error) {
+      toast.error('Erro ao registrar retorno do almoço');
+    }
+  };
+
+  const handleSaidaEmpresa = async (director) => {
     try {
       const now = new Date();
       await directorsAPI.update(director.id, {
         hora_saida: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       });
-      toast.success('Saída registrada');
+      toast.success('Saída da empresa registrada');
       loadDirectors();
     } catch (error) {
       toast.error('Erro ao registrar saída');
@@ -147,6 +181,31 @@ const Directors = () => {
     setDialogOpen(true);
   };
 
+  const getStatusBadge = (director) => {
+    if (director.hora_saida) {
+      return <span className="badge-success">Saiu</span>;
+    }
+    if (director.hora_saida_almoco && !director.hora_retorno_almoco) {
+      return <span className="badge-warning">Almoço</span>;
+    }
+    return <span className="badge-info">Presente</span>;
+  };
+
+  const canRegisterAction = (director, action) => {
+    if (director.hora_saida) return false; // Já saiu da empresa
+    
+    switch (action) {
+      case 'saida_almoco':
+        return !director.hora_saida_almoco;
+      case 'retorno_almoco':
+        return director.hora_saida_almoco && !director.hora_retorno_almoco;
+      case 'saida':
+        return !director.hora_saida_almoco || director.hora_retorno_almoco;
+      default:
+        return false;
+    }
+  };
+
   const handlePrint = (director) => {
     const printContent = `
       <html>
@@ -164,6 +223,8 @@ const Directors = () => {
         <div class="field"><span class="label">Nome:</span> ${director.nome}</div>
         <div class="field"><span class="label">Data:</span> ${director.data}</div>
         <div class="field"><span class="label">Entrada:</span> ${director.hora_entrada}</div>
+        <div class="field"><span class="label">Saída Almoço:</span> ${director.hora_saida_almoco || '-'}</div>
+        <div class="field"><span class="label">Retorno Almoço:</span> ${director.hora_retorno_almoco || '-'}</div>
         <div class="field"><span class="label">Saída:</span> ${director.hora_saida || '-'}</div>
         <div class="field"><span class="label">Placa:</span> ${director.placa || '-'}</div>
         <div class="field"><span class="label">Carro:</span> ${director.carro || '-'}</div>
@@ -262,10 +323,10 @@ const Directors = () => {
               <TableHead className="text-gray-400">Nome</TableHead>
               <TableHead className="text-gray-400">Data</TableHead>
               <TableHead className="text-gray-400">Entrada</TableHead>
+              <TableHead className="text-gray-400">Saída Almoço</TableHead>
+              <TableHead className="text-gray-400">Retorno Almoço</TableHead>
               <TableHead className="text-gray-400">Saída</TableHead>
-              <TableHead className="text-gray-400">Placa</TableHead>
-              <TableHead className="text-gray-400">Carro</TableHead>
-              <TableHead className="text-gray-400">Porteiro</TableHead>
+              <TableHead className="text-gray-400">Status</TableHead>
               <TableHead className="text-gray-400 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -288,16 +349,10 @@ const Directors = () => {
                   <TableCell className="text-white font-medium">{director.nome}</TableCell>
                   <TableCell className="text-gray-400">{director.data}</TableCell>
                   <TableCell className="text-gray-400 font-mono">{director.hora_entrada}</TableCell>
-                  <TableCell>
-                    {director.hora_saida ? (
-                      <span className="text-gray-400 font-mono">{director.hora_saida}</span>
-                    ) : (
-                      <span className="badge-info">Presente</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-white font-mono">{director.placa || '-'}</TableCell>
-                  <TableCell className="text-gray-400">{director.carro || '-'}</TableCell>
-                  <TableCell className="text-gray-400">{director.porteiro}</TableCell>
+                  <TableCell className="text-gray-400 font-mono">{director.hora_saida_almoco || '-'}</TableCell>
+                  <TableCell className="text-gray-400 font-mono">{director.hora_retorno_almoco || '-'}</TableCell>
+                  <TableCell className="text-gray-400 font-mono">{director.hora_saida || '-'}</TableCell>
+                  <TableCell>{getStatusBadge(director)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -309,17 +364,51 @@ const Directors = () => {
                       >
                         <Eye size={16} />
                       </Button>
-                      {!director.hora_saida && (isAdmin || isPortaria) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRegisterExit(director)}
-                          className="text-yellow-400 hover:text-yellow-300"
-                          data-testid={`exit-director-${director.id}`}
-                        >
-                          <SignOut size={16} />
-                        </Button>
+                      
+                      {(isAdmin || isPortaria) && !director.hora_saida && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-yellow-400 hover:text-yellow-300"
+                              data-testid={`actions-director-${director.id}`}
+                            >
+                              <SignOut size={16} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="bg-[#141414] border-[#262626]">
+                            {canRegisterAction(director, 'saida_almoco') && (
+                              <DropdownMenuItem 
+                                onClick={() => handleSaidaAlmoco(director)}
+                                className="text-white hover:bg-[#262626] cursor-pointer"
+                              >
+                                <Coffee size={16} className="mr-2" />
+                                Saída Almoço
+                              </DropdownMenuItem>
+                            )}
+                            {canRegisterAction(director, 'retorno_almoco') && (
+                              <DropdownMenuItem 
+                                onClick={() => handleRetornoAlmoco(director)}
+                                className="text-white hover:bg-[#262626] cursor-pointer"
+                              >
+                                <ArrowUDownLeft size={16} className="mr-2" />
+                                Retorno Almoço
+                              </DropdownMenuItem>
+                            )}
+                            {canRegisterAction(director, 'saida') && (
+                              <DropdownMenuItem 
+                                onClick={() => handleSaidaEmpresa(director)}
+                                className="text-white hover:bg-[#262626] cursor-pointer"
+                              >
+                                <SignOut size={16} className="mr-2" />
+                                Saída da Empresa
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
+                      
                       {(isAdmin || isPortaria) && (
                         <Button
                           variant="ghost"
@@ -449,9 +538,30 @@ const Directors = () => {
                   <p className="text-white font-mono">{selectedDirector.hora_entrada}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Saída</p>
-                  <p className="text-white font-mono">{selectedDirector.hora_saida || '-'}</p>
+                  <p className="text-xs text-gray-500">Status</p>
+                  {getStatusBadge(selectedDirector)}
                 </div>
+              </div>
+              
+              <div className="border-t border-[#262626] pt-4">
+                <p className="text-sm font-medium text-white mb-3">Movimentações</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Saída Almoço</p>
+                    <p className="text-white font-mono">{selectedDirector.hora_saida_almoco || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Retorno Almoço</p>
+                    <p className="text-white font-mono">{selectedDirector.hora_retorno_almoco || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Saída Empresa</p>
+                    <p className="text-white font-mono">{selectedDirector.hora_saida || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-[#262626] pt-4 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Placa</p>
                   <p className="text-white font-mono">{selectedDirector.placa || '-'}</p>
@@ -465,6 +575,7 @@ const Directors = () => {
                   <p className="text-white">{selectedDirector.porteiro}</p>
                 </div>
               </div>
+              
               {selectedDirector.observacao && (
                 <div>
                   <p className="text-xs text-gray-500">Observação</p>

@@ -49,6 +49,7 @@ import { toast } from 'sonner';
 const ROLES = [
   { value: 'portaria', label: 'Portaria' },
   { value: 'gestor', label: 'Gestor' },
+  { value: 'dsl', label: 'DSL/Transporte' },
   { value: 'diretoria', label: 'Diretoria' },
   { value: 'admin', label: 'Administrador' },
 ];
@@ -144,12 +145,14 @@ const Settings = () => {
       admin: 'bg-purple-500/10 border-purple-500 text-purple-500',
       portaria: 'bg-blue-500/10 border-blue-500 text-blue-500',
       gestor: 'bg-green-500/10 border-green-500 text-green-500',
+      dsl: 'bg-cyan-500/10 border-cyan-500 text-cyan-500',
       diretoria: 'bg-yellow-500/10 border-yellow-500 text-yellow-500'
     };
     const labels = {
       admin: 'Administrador',
       portaria: 'Portaria',
       gestor: 'Gestor',
+      dsl: 'DSL/Transporte',
       diretoria: 'Diretoria'
     };
     return (
@@ -262,7 +265,7 @@ const Settings = () => {
           <ShieldCheck size={20} weight="duotone" />
           Perfis de Acesso
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-4 bg-[#0A0A0A] rounded-md">
             <div className="flex items-center gap-2 mb-2">
               {getRoleBadge('portaria')}
@@ -276,7 +279,15 @@ const Settings = () => {
               {getRoleBadge('gestor')}
             </div>
             <p className="text-sm text-gray-400">
-              Visualização total, relatórios completos e filtros avançados. Sem permissão de cadastro.
+              Visualização total, relatórios completos, filtros avançados e pré-cadastro de agendamentos.
+            </p>
+          </div>
+          <div className="p-4 bg-[#0A0A0A] rounded-md">
+            <div className="flex items-center gap-2 mb-2">
+              {getRoleBadge('dsl')}
+            </div>
+            <p className="text-sm text-gray-400">
+              Pré-cadastro e agendamento de carregamentos. Ideal para equipe de DSL/Transporte.
             </p>
           </div>
           <div className="p-4 bg-[#0A0A0A] rounded-md">

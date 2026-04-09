@@ -228,8 +228,64 @@ class DirectorUpdate(BaseModel):
     nome: Optional[str] = None
     placa: Optional[str] = None
     carro: Optional[str] = None
+    hora_saida_almoco: Optional[str] = None
+    hora_retorno_almoco: Optional[str] = None
     hora_saida: Optional[str] = None
     observacao: Optional[str] = None
+
+# ================== CARREGAMENTO MODELS ==================
+
+class CarregamentoCreate(BaseModel):
+    placa_carreta: str
+    placa_cavalo: str
+    cubagem: Optional[str] = None
+    motorista: str
+    empresa_terceirizada: str
+    destino: str
+    observacao: Optional[str] = None
+    agendamento_id: Optional[str] = None
+
+class CarregamentoUpdate(BaseModel):
+    placa_carreta: Optional[str] = None
+    placa_cavalo: Optional[str] = None
+    cubagem: Optional[str] = None
+    motorista: Optional[str] = None
+    empresa_terceirizada: Optional[str] = None
+    destino: Optional[str] = None
+    hora_saida: Optional[str] = None
+    observacao: Optional[str] = None
+
+# ================== AGENDAMENTO MODELS ==================
+
+class AgendamentoCreate(BaseModel):
+    tipo: str  # carregamento, visitante, funcionario, diretoria
+    data_prevista: str
+    hora_prevista: Optional[str] = None
+    # Campos para carregamento
+    placa_carreta: Optional[str] = None
+    placa_cavalo: Optional[str] = None
+    cubagem: Optional[str] = None
+    motorista: Optional[str] = None
+    empresa_terceirizada: Optional[str] = None
+    destino: Optional[str] = None
+    # Campos gerais
+    nome: Optional[str] = None
+    placa: Optional[str] = None
+    observacao: Optional[str] = None
+
+class AgendamentoUpdate(BaseModel):
+    data_prevista: Optional[str] = None
+    hora_prevista: Optional[str] = None
+    placa_carreta: Optional[str] = None
+    placa_cavalo: Optional[str] = None
+    cubagem: Optional[str] = None
+    motorista: Optional[str] = None
+    empresa_terceirizada: Optional[str] = None
+    destino: Optional[str] = None
+    nome: Optional[str] = None
+    placa: Optional[str] = None
+    observacao: Optional[str] = None
+    status: Optional[str] = None
 
 # ================== STARTUP ==================
 
@@ -903,7 +959,10 @@ async def create_director(data: DirectorCreate, request: Request):
         "observacao": data.observacao,
         "data": now.strftime("%Y-%m-%d"),
         "hora_entrada": now.strftime("%H:%M"),
+        "hora_saida_almoco": None,
+        "hora_retorno_almoco": None,
         "hora_saida": None,
+        "status": "presente",
         "porteiro": user.get("name", ""),
         "porteiro_id": user.get("id", ""),
         "created_at": now,
@@ -973,8 +1032,15 @@ async def update_director(director_id: str, data: DirectorUpdate, request: Reque
         update_data["placa"] = data.placa
     if data.carro is not None:
         update_data["carro"] = data.carro
+    if data.hora_saida_almoco is not None:
+        update_data["hora_saida_almoco"] = data.hora_saida_almoco
+        update_data["status"] = "almoco"
+    if data.hora_retorno_almoco is not None:
+        update_data["hora_retorno_almoco"] = data.hora_retorno_almoco
+        update_data["status"] = "presente"
     if data.hora_saida is not None:
         update_data["hora_saida"] = data.hora_saida
+        update_data["status"] = "saiu"
     if data.observacao is not None:
         update_data["observacao"] = data.observacao
     
@@ -1014,6 +1080,9 @@ async def get_dashboard(request: Request):
     directors_today = await db.directors.count_documents({"data": today})
     fleet_in_use = await db.fleet.count_documents({"status": "em_uso"})
     fleet_returned_today = await db.fleet.count_documents({"data_retorno": today, "status": "retornado"})
+    carregamentos_hoje = await db.carregamentos.count_documents({"data": today})
+    carregamentos_em_andamento = await db.carregamentos.count_documents({"status": "em_carregamento"})
+    agendamentos_hoje = await db.agendamentos.count_documents({"data_prevista": today, "status": "pendente"})
     
     # Week stats
     week_start = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -1027,13 +1096,22 @@ async def get_dashboard(request: Request):
     # Fleet in use
     fleet_out = await db.fleet.find({"status": "em_uso"}).sort("created_at", -1).to_list(100)
     
+    # Agendamentos do dia
+    agendamentos_dia = await db.agendamentos.find({
+        "data_prevista": today,
+        "status": "pendente"
+    }).sort("hora_prevista", 1).to_list(10)
+    
     return {
         "today": {
             "visitors": visitors_today,
             "employees": employees_today,
             "directors": directors_today,
             "fleet_in_use": fleet_in_use,
-            "fleet_returned": fleet_returned_today
+            "fleet_returned": fleet_returned_today,
+            "carregamentos": carregamentos_hoje,
+            "carregamentos_em_andamento": carregamentos_em_andamento,
+            "agendamentos": agendamentos_hoje
         },
         "week": {
             "visitors": visitors_week,
@@ -1041,7 +1119,8 @@ async def get_dashboard(request: Request):
         },
         "recent_visitors": [serialize_doc(v) for v in recent_visitors],
         "recent_fleet": [serialize_doc(f) for f in recent_fleet],
-        "fleet_out": [serialize_doc(f) for f in fleet_out]
+        "fleet_out": [serialize_doc(f) for f in fleet_out],
+        "agendamentos_dia": [serialize_doc(a) for a in agendamentos_dia]
     }
 
 # ================== HISTORY ==================
@@ -1171,6 +1250,331 @@ async def report_directors(
     
     directors = await db.directors.find(query).sort("created_at", -1).to_list(10000)
     return {"items": [serialize_doc(d) for d in directors], "total": len(directors)}
+
+# ================== CARREGAMENTO ==================
+
+@api_router.post("/carregamentos")
+async def create_carregamento(data: CarregamentoCreate, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "portaria"])
+    
+    now = datetime.now(timezone.utc)
+    doc = {
+        "placa_carreta": data.placa_carreta.upper(),
+        "placa_cavalo": data.placa_cavalo.upper(),
+        "cubagem": data.cubagem,
+        "motorista": data.motorista,
+        "empresa_terceirizada": data.empresa_terceirizada,
+        "destino": data.destino,
+        "observacao": data.observacao,
+        "data": now.strftime("%Y-%m-%d"),
+        "hora_entrada": now.strftime("%H:%M"),
+        "hora_saida": None,
+        "status": "em_carregamento",
+        "agendamento_id": data.agendamento_id,
+        "porteiro_entrada": user.get("name", ""),
+        "porteiro_entrada_id": user.get("id", ""),
+        "porteiro_saida": None,
+        "porteiro_saida_id": None,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    result = await db.carregamentos.insert_one(doc)
+    
+    # Update agendamento status if linked
+    if data.agendamento_id:
+        await db.agendamentos.update_one(
+            {"_id": ObjectId(data.agendamento_id)},
+            {"$set": {"status": "realizado", "updated_at": now}}
+        )
+    
+    await db.history.insert_one({
+        "collection": "carregamentos",
+        "document_id": str(result.inserted_id),
+        "action": "create",
+        "user_id": user.get("id"),
+        "user_name": user.get("name"),
+        "timestamp": now,
+        "changes": doc
+    })
+    
+    return serialize_doc({**doc, "_id": result.inserted_id})
+
+@api_router.get("/carregamentos")
+async def list_carregamentos(
+    request: Request,
+    placa_carreta: Optional[str] = None,
+    placa_cavalo: Optional[str] = None,
+    motorista: Optional[str] = None,
+    empresa: Optional[str] = None,
+    destino: Optional[str] = None,
+    status: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    limit: int = 100,
+    skip: int = 0
+):
+    await get_current_user(request)
+    
+    query = {}
+    if placa_carreta:
+        query["placa_carreta"] = {"$regex": placa_carreta, "$options": "i"}
+    if placa_cavalo:
+        query["placa_cavalo"] = {"$regex": placa_cavalo, "$options": "i"}
+    if motorista:
+        query["motorista"] = {"$regex": motorista, "$options": "i"}
+    if empresa:
+        query["empresa_terceirizada"] = {"$regex": empresa, "$options": "i"}
+    if destino:
+        query["destino"] = {"$regex": destino, "$options": "i"}
+    if status:
+        query["status"] = status
+    if data_inicio and data_fim:
+        query["data"] = {"$gte": data_inicio, "$lte": data_fim}
+    elif data_inicio:
+        query["data"] = {"$gte": data_inicio}
+    elif data_fim:
+        query["data"] = {"$lte": data_fim}
+    
+    carregamentos = await db.carregamentos.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.carregamentos.count_documents(query)
+    
+    return {"items": [serialize_doc(c) for c in carregamentos], "total": total}
+
+@api_router.get("/carregamentos/{carregamento_id}")
+async def get_carregamento(carregamento_id: str, request: Request):
+    await get_current_user(request)
+    carregamento = await db.carregamentos.find_one({"_id": ObjectId(carregamento_id)})
+    if not carregamento:
+        raise HTTPException(status_code=404, detail="Carregamento not found")
+    return serialize_doc(carregamento)
+
+@api_router.put("/carregamentos/{carregamento_id}")
+async def update_carregamento(carregamento_id: str, data: CarregamentoUpdate, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "portaria"])
+    
+    update_data = {"updated_at": datetime.now(timezone.utc)}
+    if data.placa_carreta is not None:
+        update_data["placa_carreta"] = data.placa_carreta.upper()
+    if data.placa_cavalo is not None:
+        update_data["placa_cavalo"] = data.placa_cavalo.upper()
+    if data.cubagem is not None:
+        update_data["cubagem"] = data.cubagem
+    if data.motorista is not None:
+        update_data["motorista"] = data.motorista
+    if data.empresa_terceirizada is not None:
+        update_data["empresa_terceirizada"] = data.empresa_terceirizada
+    if data.destino is not None:
+        update_data["destino"] = data.destino
+    if data.hora_saida is not None:
+        update_data["hora_saida"] = data.hora_saida
+        update_data["status"] = "finalizado"
+        update_data["porteiro_saida"] = user.get("name", "")
+        update_data["porteiro_saida_id"] = user.get("id", "")
+    if data.observacao is not None:
+        update_data["observacao"] = data.observacao
+    
+    await db.carregamentos.update_one({"_id": ObjectId(carregamento_id)}, {"$set": update_data})
+    
+    await db.history.insert_one({
+        "collection": "carregamentos",
+        "document_id": carregamento_id,
+        "action": "update",
+        "user_id": user.get("id"),
+        "user_name": user.get("name"),
+        "timestamp": datetime.now(timezone.utc),
+        "changes": update_data
+    })
+    
+    updated = await db.carregamentos.find_one({"_id": ObjectId(carregamento_id)})
+    return serialize_doc(updated)
+
+@api_router.delete("/carregamentos/{carregamento_id}")
+async def delete_carregamento(carregamento_id: str, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin"])
+    await db.carregamentos.delete_one({"_id": ObjectId(carregamento_id)})
+    return {"message": "Carregamento deleted"}
+
+# ================== AGENDAMENTOS ==================
+
+@api_router.post("/agendamentos")
+async def create_agendamento(data: AgendamentoCreate, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "gestor", "dsl"])
+    
+    now = datetime.now(timezone.utc)
+    doc = {
+        "tipo": data.tipo,
+        "data_prevista": data.data_prevista,
+        "hora_prevista": data.hora_prevista,
+        "placa_carreta": data.placa_carreta.upper() if data.placa_carreta else None,
+        "placa_cavalo": data.placa_cavalo.upper() if data.placa_cavalo else None,
+        "cubagem": data.cubagem,
+        "motorista": data.motorista,
+        "empresa_terceirizada": data.empresa_terceirizada,
+        "destino": data.destino,
+        "nome": data.nome,
+        "placa": data.placa.upper() if data.placa else None,
+        "observacao": data.observacao,
+        "status": "pendente",
+        "criado_por": user.get("name", ""),
+        "criado_por_id": user.get("id", ""),
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    result = await db.agendamentos.insert_one(doc)
+    
+    await db.history.insert_one({
+        "collection": "agendamentos",
+        "document_id": str(result.inserted_id),
+        "action": "create",
+        "user_id": user.get("id"),
+        "user_name": user.get("name"),
+        "timestamp": now,
+        "changes": doc
+    })
+    
+    return serialize_doc({**doc, "_id": result.inserted_id})
+
+@api_router.get("/agendamentos")
+async def list_agendamentos(
+    request: Request,
+    tipo: Optional[str] = None,
+    status: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    motorista: Optional[str] = None,
+    empresa: Optional[str] = None,
+    limit: int = 100,
+    skip: int = 0
+):
+    await get_current_user(request)
+    
+    query = {}
+    if tipo:
+        query["tipo"] = tipo
+    if status:
+        query["status"] = status
+    if motorista:
+        query["motorista"] = {"$regex": motorista, "$options": "i"}
+    if empresa:
+        query["empresa_terceirizada"] = {"$regex": empresa, "$options": "i"}
+    if data_inicio and data_fim:
+        query["data_prevista"] = {"$gte": data_inicio, "$lte": data_fim}
+    elif data_inicio:
+        query["data_prevista"] = {"$gte": data_inicio}
+    elif data_fim:
+        query["data_prevista"] = {"$lte": data_fim}
+    
+    agendamentos = await db.agendamentos.find(query).sort("data_prevista", 1).skip(skip).limit(limit).to_list(limit)
+    total = await db.agendamentos.count_documents(query)
+    
+    return {"items": [serialize_doc(a) for a in agendamentos], "total": total}
+
+@api_router.get("/agendamentos/hoje")
+async def list_agendamentos_hoje(request: Request):
+    await get_current_user(request)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    agendamentos = await db.agendamentos.find({
+        "data_prevista": today,
+        "status": "pendente"
+    }).sort("hora_prevista", 1).to_list(100)
+    
+    return {"items": [serialize_doc(a) for a in agendamentos], "total": len(agendamentos)}
+
+@api_router.get("/agendamentos/{agendamento_id}")
+async def get_agendamento(agendamento_id: str, request: Request):
+    await get_current_user(request)
+    agendamento = await db.agendamentos.find_one({"_id": ObjectId(agendamento_id)})
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento not found")
+    return serialize_doc(agendamento)
+
+@api_router.put("/agendamentos/{agendamento_id}")
+async def update_agendamento(agendamento_id: str, data: AgendamentoUpdate, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "gestor", "dsl"])
+    
+    update_data = {"updated_at": datetime.now(timezone.utc)}
+    if data.data_prevista is not None:
+        update_data["data_prevista"] = data.data_prevista
+    if data.hora_prevista is not None:
+        update_data["hora_prevista"] = data.hora_prevista
+    if data.placa_carreta is not None:
+        update_data["placa_carreta"] = data.placa_carreta.upper()
+    if data.placa_cavalo is not None:
+        update_data["placa_cavalo"] = data.placa_cavalo.upper()
+    if data.cubagem is not None:
+        update_data["cubagem"] = data.cubagem
+    if data.motorista is not None:
+        update_data["motorista"] = data.motorista
+    if data.empresa_terceirizada is not None:
+        update_data["empresa_terceirizada"] = data.empresa_terceirizada
+    if data.destino is not None:
+        update_data["destino"] = data.destino
+    if data.nome is not None:
+        update_data["nome"] = data.nome
+    if data.placa is not None:
+        update_data["placa"] = data.placa.upper()
+    if data.observacao is not None:
+        update_data["observacao"] = data.observacao
+    if data.status is not None:
+        update_data["status"] = data.status
+    
+    await db.agendamentos.update_one({"_id": ObjectId(agendamento_id)}, {"$set": update_data})
+    
+    await db.history.insert_one({
+        "collection": "agendamentos",
+        "document_id": agendamento_id,
+        "action": "update",
+        "user_id": user.get("id"),
+        "user_name": user.get("name"),
+        "timestamp": datetime.now(timezone.utc),
+        "changes": update_data
+    })
+    
+    updated = await db.agendamentos.find_one({"_id": ObjectId(agendamento_id)})
+    return serialize_doc(updated)
+
+@api_router.delete("/agendamentos/{agendamento_id}")
+async def delete_agendamento(agendamento_id: str, request: Request):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "gestor", "dsl"])
+    await db.agendamentos.delete_one({"_id": ObjectId(agendamento_id)})
+    return {"message": "Agendamento deleted"}
+
+@api_router.get("/reports/carregamentos")
+async def report_carregamentos(
+    request: Request,
+    data_inicio: str,
+    data_fim: str,
+    motorista: Optional[str] = None,
+    empresa: Optional[str] = None,
+    destino: Optional[str] = None,
+    porteiro: Optional[str] = None
+):
+    await get_current_user(request)
+    
+    query = {"data": {"$gte": data_inicio, "$lte": data_fim}}
+    if motorista:
+        query["motorista"] = {"$regex": motorista, "$options": "i"}
+    if empresa:
+        query["empresa_terceirizada"] = {"$regex": empresa, "$options": "i"}
+    if destino:
+        query["destino"] = {"$regex": destino, "$options": "i"}
+    if porteiro:
+        query["$or"] = [
+            {"porteiro_entrada": {"$regex": porteiro, "$options": "i"}},
+            {"porteiro_saida": {"$regex": porteiro, "$options": "i"}}
+        ]
+    
+    carregamentos = await db.carregamentos.find(query).sort("created_at", -1).to_list(10000)
+    return {"items": [serialize_doc(c) for c in carregamentos], "total": len(carregamentos)}
 
 # ================== ROOT ==================
 

@@ -8,8 +8,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Visitors from './pages/Visitors';
 import Fleet from './pages/Fleet';
+import Carregamentos from './pages/Carregamentos';
 import Employees from './pages/Employees';
 import Directors from './pages/Directors';
+import Agendamentos from './pages/Agendamentos';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
@@ -28,8 +30,10 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="visitantes" element={<Visitors />} />
             <Route path="frota" element={<Fleet />} />
+            <Route path="carregamentos" element={<Carregamentos />} />
             <Route path="funcionarios" element={<Employees />} />
             <Route path="diretoria" element={<Directors />} />
+            <Route path="agendamentos" element={<Agendamentos />} />
             <Route path="relatorios" element={<Reports />} />
             <Route path="configuracoes" element={
               <ProtectedRoute allowedRoles={['admin']}>

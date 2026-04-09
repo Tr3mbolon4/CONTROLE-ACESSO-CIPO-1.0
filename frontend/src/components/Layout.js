@@ -11,7 +11,9 @@ import {
   Gear,
   SignOut,
   List,
-  X
+  X,
+  Truck,
+  CalendarCheck
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import {
@@ -36,8 +38,10 @@ const Layout = () => {
     { path: '/', icon: House, label: 'Dashboard' },
     { path: '/visitantes', icon: Users, label: 'Visitantes' },
     { path: '/frota', icon: Car, label: 'Frota' },
+    { path: '/carregamentos', icon: Truck, label: 'Carregamentos' },
     { path: '/funcionarios', icon: UserCircle, label: 'Funcionários' },
     { path: '/diretoria', icon: Crown, label: 'Diretoria' },
+    { path: '/agendamentos', icon: CalendarCheck, label: 'Agendamentos' },
     { path: '/relatorios', icon: ChartBar, label: 'Relatórios' },
   ];
 
