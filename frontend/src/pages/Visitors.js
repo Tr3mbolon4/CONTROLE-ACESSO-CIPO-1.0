@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { visitorsAPI } from '../services/api';
+import { visitorsAPI, agendamentosAPI } from '../services/api';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -8,11 +8,16 @@ import {
   Trash, 
   Eye,
   SignOut,
-  Printer
+  Printer,
+  CalendarCheck,
+  SignIn,
+  CheckCircle,
+  XCircle
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +32,12 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,11 +55,14 @@ const Visitors = () => {
   const { isAdmin, isPortaria } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [visitors, setVisitors] = useState([]);
+  const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('ativos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
   const [filters, setFilters] = useState({
     nome: '',
     placa: '',
@@ -64,6 +78,7 @@ const Visitors = () => {
 
   useEffect(() => {
     loadVisitors();
+    loadAgendamentos();
     if (searchParams.get('action') === 'new') {
       setDialogOpen(true);
       setSearchParams({});
@@ -85,6 +100,27 @@ const Visitors = () => {
       toast.error('Erro ao carregar visitantes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAgendamentos = async () => {
+    try {
+      const response = await agendamentosAPI.list({ tipo: 'visitante', status: 'pendente' });
+      setAgendamentos(response.data.items);
+    } catch (error) {
+      console.error('Error loading agendamentos:', error);
+    }
+  };
+
+  const handleDarEntrada = async (agendamento) => {
+    try {
+      await agendamentosAPI.darEntrada(agendamento.id);
+      toast.success('Entrada registrada com sucesso!');
+      loadVisitors();
+      loadAgendamentos();
+      setActiveTab('ativos');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Erro ao dar entrada');
     }
   };
 
@@ -147,28 +183,101 @@ const Visitors = () => {
     setDialogOpen(true);
   };
 
-  const handlePrint = (visitor) => {
+  const toggleSelectItem = (id) => {
+    setSelectedItems(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.length === visitors.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(visitors.map(v => v.id));
+    }
+  };
+
+  const handlePrintSelected = () => {
+    const itemsToPrint = visitors.filter(v => selectedItems.includes(v.id));
+    if (itemsToPrint.length === 0) {
+      toast.error('Selecione pelo menos um registro para imprimir');
+      return;
+    }
+    printMultiple(itemsToPrint);
+  };
+
+  const printMultiple = (items) => {
     const printContent = `
       <html>
       <head>
-        <title>Registro de Visitante</title>
+        <title>Registro de Visitantes - Cipolatti</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          h1 { font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-          .field { margin: 10px 0; }
-          .label { font-weight: bold; }
+          @page { margin: 20mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; margin: 0; color: #333; }
+          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 20px; }
+          .logo { font-size: 28px; font-weight: bold; color: #1a1a1a; }
+          .logo span { color: #e63946; }
+          .title { font-size: 18px; color: #666; }
+          .record { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
+          .record-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+          .record-name { font-size: 16px; font-weight: bold; color: #1a1a1a; }
+          .record-date { font-size: 12px; color: #666; }
+          .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .field { }
+          .field-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+          .field-value { font-size: 13px; color: #333; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+          .badge-present { background: #dcfce7; color: #166534; }
+          .badge-exit { background: #f3f4f6; color: #374151; }
+          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #888; text-align: center; }
         </style>
       </head>
       <body>
-        <h1>REGISTRO DE VISITANTE</h1>
-        <div class="field"><span class="label">Nome:</span> ${visitor.nome}</div>
-        <div class="field"><span class="label">Data:</span> ${visitor.data}</div>
-        <div class="field"><span class="label">Entrada:</span> ${visitor.hora_entrada}</div>
-        <div class="field"><span class="label">Saída:</span> ${visitor.hora_saida || '-'}</div>
-        <div class="field"><span class="label">Placa:</span> ${visitor.placa || '-'}</div>
-        <div class="field"><span class="label">Veículo:</span> ${visitor.veiculo || '-'}</div>
-        <div class="field"><span class="label">Porteiro:</span> ${visitor.porteiro}</div>
-        <div class="field"><span class="label">Observação:</span> ${visitor.observacao || '-'}</div>
+        <div class="header">
+          <div class="logo">CIPO<span>LATTI</span></div>
+          <div class="title">Registro de Visitantes</div>
+        </div>
+        ${items.map(visitor => `
+          <div class="record">
+            <div class="record-header">
+              <div class="record-name">${visitor.nome}</div>
+              <div class="record-date">${visitor.data}</div>
+            </div>
+            <div class="fields">
+              <div class="field">
+                <div class="field-label">Entrada</div>
+                <div class="field-value">${visitor.hora_entrada}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Saída</div>
+                <div class="field-value">
+                  ${visitor.hora_saida 
+                    ? `<span class="badge badge-exit">${visitor.hora_saida}</span>` 
+                    : `<span class="badge badge-present">PRESENTE</span>`}
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-label">Placa</div>
+                <div class="field-value">${visitor.placa || '-'}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Veículo</div>
+                <div class="field-value">${visitor.veiculo || '-'}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Porteiro</div>
+                <div class="field-value">${visitor.porteiro}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Observação</div>
+                <div class="field-value">${visitor.observacao || '-'}</div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="footer">
+          Documento gerado em ${new Date().toLocaleString('pt-BR')} | Sistema de Controle de Acesso - Cipolatti
+        </div>
       </body>
       </html>
     `;
@@ -176,6 +285,10 @@ const Visitors = () => {
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
+  };
+
+  const handlePrint = (visitor) => {
+    printMultiple([visitor]);
   };
 
   return (
@@ -186,177 +299,420 @@ const Visitors = () => {
           <h1 className="text-2xl font-semibold text-white font-['Outfit']">Visitantes</h1>
           <p className="text-gray-500 mt-1">Gerenciamento de visitantes da portaria</p>
         </div>
-        {(isAdmin || isPortaria) && (
-          <Button 
-            onClick={() => { resetForm(); setDialogOpen(true); }}
-            className="bg-white text-black hover:bg-gray-200"
-            data-testid="add-visitor-button"
-          >
-            <Plus size={18} className="mr-2" />
-            Novo Visitante
-          </Button>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="card-dark p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div>
-            <Label className="text-gray-400 text-xs">Nome</Label>
-            <Input
-              placeholder="Buscar por nome"
-              value={filters.nome}
-              onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-nome"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Placa</Label>
-            <Input
-              placeholder="Buscar por placa"
-              value={filters.placa}
-              onChange={(e) => setFilters({ ...filters, placa: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-placa"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Data Início</Label>
-            <Input
-              type="date"
-              value={filters.data_inicio}
-              onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-data-inicio"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Data Fim</Label>
-            <Input
-              type="date"
-              value={filters.data_fim}
-              onChange={(e) => setFilters({ ...filters, data_fim: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-data-fim"
-            />
-          </div>
-          <div className="flex items-end">
+        <div className="flex gap-2">
+          {selectedItems.length > 0 && (
             <Button 
-              onClick={loadVisitors}
-              className="w-full bg-[#262626] text-white hover:bg-[#363636]"
-              data-testid="filter-search-button"
+              onClick={handlePrintSelected}
+              variant="outline"
+              className="border-[#262626] text-white hover:bg-[#262626]"
+              data-testid="print-selected-button"
             >
-              <MagnifyingGlass size={18} className="mr-2" />
-              Buscar
+              <Printer size={18} className="mr-2" />
+              Imprimir ({selectedItems.length})
             </Button>
-          </div>
+          )}
+          {(isAdmin || isPortaria) && (
+            <Button 
+              onClick={() => { resetForm(); setDialogOpen(true); }}
+              className="bg-white text-black hover:bg-gray-200"
+              data-testid="add-visitor-button"
+            >
+              <Plus size={18} className="mr-2" />
+              Novo Visitante
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card-dark overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-[#262626] hover:bg-transparent">
-              <TableHead className="text-gray-400">Nome</TableHead>
-              <TableHead className="text-gray-400">Data</TableHead>
-              <TableHead className="text-gray-400">Entrada</TableHead>
-              <TableHead className="text-gray-400">Saída</TableHead>
-              <TableHead className="text-gray-400">Placa</TableHead>
-              <TableHead className="text-gray-400">Porteiro</TableHead>
-              <TableHead className="text-gray-400 text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                  Carregando...
-                </TableCell>
-              </TableRow>
-            ) : visitors.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                  Nenhum visitante encontrado
-                </TableCell>
-              </TableRow>
-            ) : (
-              visitors.map((visitor) => (
-                <TableRow key={visitor.id} className="border-[#262626] hover:bg-[#1F1F1F]">
-                  <TableCell className="text-white font-medium">{visitor.nome}</TableCell>
-                  <TableCell className="text-gray-400">{visitor.data}</TableCell>
-                  <TableCell className="text-gray-400 font-mono">{visitor.hora_entrada}</TableCell>
-                  <TableCell>
-                    {visitor.hora_saida ? (
-                      <span className="text-gray-400 font-mono">{visitor.hora_saida}</span>
-                    ) : (
-                      <span className="badge-info">Presente</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-white font-mono">{visitor.placa || '-'}</TableCell>
-                  <TableCell className="text-gray-400">{visitor.porteiro}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setSelectedVisitor(visitor); setViewDialogOpen(true); }}
-                        className="text-gray-400 hover:text-white"
-                        data-testid={`view-visitor-${visitor.id}`}
-                      >
-                        <Eye size={16} />
-                      </Button>
-                      {!visitor.hora_saida && (isAdmin || isPortaria) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRegisterExit(visitor)}
-                          className="text-yellow-400 hover:text-yellow-300"
-                          data-testid={`exit-visitor-${visitor.id}`}
-                        >
-                          <SignOut size={16} />
-                        </Button>
-                      )}
-                      {(isAdmin || isPortaria) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(visitor)}
-                          className="text-gray-400 hover:text-white"
-                          data-testid={`edit-visitor-${visitor.id}`}
-                        >
-                          <Pencil size={16} />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePrint(visitor)}
-                        className="text-gray-400 hover:text-white"
-                        data-testid={`print-visitor-${visitor.id}`}
-                      >
-                        <Printer size={16} />
-                      </Button>
-                      {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => { setSelectedVisitor(visitor); setDeleteDialogOpen(true); }}
-                          className="text-red-400 hover:text-red-300"
-                          data-testid={`delete-visitor-${visitor.id}`}
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-[#0A0A0A] border border-[#262626]">
+          <TabsTrigger value="ativos" className="data-[state=active]:bg-[#262626]">
+            Ativos ({visitors.filter(v => !v.hora_saida).length})
+          </TabsTrigger>
+          <TabsTrigger value="agendados" className="data-[state=active]:bg-[#262626]">
+            <CalendarCheck size={16} className="mr-1" />
+            Agendados ({agendamentos.length})
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="data-[state=active]:bg-[#262626]">
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Agendados Tab */}
+        <TabsContent value="agendados" className="mt-4">
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400">Data Prevista</TableHead>
+                  <TableHead className="text-gray-400">Hora</TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Placa</TableHead>
+                  <TableHead className="text-gray-400">Criado Por</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {agendamentos.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      Nenhum visitante agendado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  agendamentos.map((ag) => (
+                    <TableRow key={ag.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell className="text-white font-medium">{ag.data_prevista}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{ag.hora_prevista || '-'}</TableCell>
+                      <TableCell className="text-white">{ag.nome || '-'}</TableCell>
+                      <TableCell className="text-white font-mono">{ag.placa || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{ag.criado_por}</TableCell>
+                      <TableCell className="text-right">
+                        {(isAdmin || isPortaria) && (
+                          <Button
+                            onClick={() => handleDarEntrada(ag)}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            size="sm"
+                            data-testid={`dar-entrada-${ag.id}`}
+                          >
+                            <SignIn size={16} className="mr-1" />
+                            Dar Entrada
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Ativos Tab */}
+        <TabsContent value="ativos" className="mt-4 space-y-4">
+          {/* Filters */}
+          <div className="card-dark p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <Label className="text-gray-400 text-xs">Nome</Label>
+                <Input
+                  placeholder="Buscar por nome"
+                  value={filters.nome}
+                  onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-nome"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Placa</Label>
+                <Input
+                  placeholder="Buscar por placa"
+                  value={filters.placa}
+                  onChange={(e) => setFilters({ ...filters, placa: e.target.value.toUpperCase() })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                  data-testid="filter-placa"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Início</Label>
+                <Input
+                  type="date"
+                  value={filters.data_inicio}
+                  onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-data-inicio"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Fim</Label>
+                <Input
+                  type="date"
+                  value={filters.data_fim}
+                  onChange={(e) => setFilters({ ...filters, data_fim: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-data-fim"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  onClick={loadVisitors}
+                  className="w-full bg-[#262626] text-white hover:bg-[#363636]"
+                  data-testid="filter-search-button"
+                >
+                  <MagnifyingGlass size={18} className="mr-2" />
+                  Buscar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400 w-10">
+                    <Checkbox
+                      checked={selectedItems.length === visitors.length && visitors.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="text-gray-400">Entrada</TableHead>
+                  <TableHead className="text-gray-400">Saída</TableHead>
+                  <TableHead className="text-gray-400">Placa</TableHead>
+                  <TableHead className="text-gray-400">Porteiro</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : visitors.filter(v => !v.hora_saida).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Nenhum visitante presente
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  visitors.filter(v => !v.hora_saida).map((visitor) => (
+                    <TableRow key={visitor.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(visitor.id)}
+                          onCheckedChange={() => toggleSelectItem(visitor.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-white font-medium">{visitor.nome}</TableCell>
+                      <TableCell className="text-gray-400">{visitor.data}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{visitor.hora_entrada}</TableCell>
+                      <TableCell>
+                        <span className="badge-info">Presente</span>
+                      </TableCell>
+                      <TableCell className="text-white font-mono">{visitor.placa || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{visitor.porteiro}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedVisitor(visitor); setViewDialogOpen(true); }}
+                            className="text-gray-400 hover:text-white"
+                            data-testid={`view-visitor-${visitor.id}`}
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegisterExit(visitor)}
+                              className="text-yellow-400 hover:text-yellow-300"
+                              data-testid={`exit-visitor-${visitor.id}`}
+                            >
+                              <SignOut size={16} />
+                            </Button>
+                          )}
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(visitor)}
+                              className="text-gray-400 hover:text-white"
+                              data-testid={`edit-visitor-${visitor.id}`}
+                            >
+                              <Pencil size={16} />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePrint(visitor)}
+                            className="text-gray-400 hover:text-white"
+                            data-testid={`print-visitor-${visitor.id}`}
+                          >
+                            <Printer size={16} />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedVisitor(visitor); setDeleteDialogOpen(true); }}
+                              className="text-red-400 hover:text-red-300"
+                              data-testid={`delete-visitor-${visitor.id}`}
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Histórico Tab */}
+        <TabsContent value="historico" className="mt-4 space-y-4">
+          <div className="card-dark p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <Label className="text-gray-400 text-xs">Nome</Label>
+                <Input
+                  placeholder="Buscar por nome"
+                  value={filters.nome}
+                  onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Placa</Label>
+                <Input
+                  placeholder="Buscar por placa"
+                  value={filters.placa}
+                  onChange={(e) => setFilters({ ...filters, placa: e.target.value.toUpperCase() })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Início</Label>
+                <Input
+                  type="date"
+                  value={filters.data_inicio}
+                  onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Fim</Label>
+                <Input
+                  type="date"
+                  value={filters.data_fim}
+                  onChange={(e) => setFilters({ ...filters, data_fim: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  onClick={loadVisitors}
+                  className="w-full bg-[#262626] text-white hover:bg-[#363636]"
+                >
+                  <MagnifyingGlass size={18} className="mr-2" />
+                  Buscar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400 w-10">
+                    <Checkbox
+                      checked={selectedItems.length === visitors.length && visitors.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="text-gray-400">Entrada</TableHead>
+                  <TableHead className="text-gray-400">Saída</TableHead>
+                  <TableHead className="text-gray-400">Placa</TableHead>
+                  <TableHead className="text-gray-400">Porteiro</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : visitors.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Nenhum visitante encontrado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  visitors.map((visitor) => (
+                    <TableRow key={visitor.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(visitor.id)}
+                          onCheckedChange={() => toggleSelectItem(visitor.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-white font-medium">{visitor.nome}</TableCell>
+                      <TableCell className="text-gray-400">{visitor.data}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{visitor.hora_entrada}</TableCell>
+                      <TableCell>
+                        {visitor.hora_saida ? (
+                          <span className="text-gray-400 font-mono">{visitor.hora_saida}</span>
+                        ) : (
+                          <span className="badge-info">Presente</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-white font-mono">{visitor.placa || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{visitor.porteiro}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedVisitor(visitor); setViewDialogOpen(true); }}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          {!visitor.hora_saida && (isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegisterExit(visitor)}
+                              className="text-yellow-400 hover:text-yellow-300"
+                            >
+                              <SignOut size={16} />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePrint(visitor)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Printer size={16} />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedVisitor(visitor); setDeleteDialogOpen(true); }}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -371,7 +727,7 @@ const Visitors = () => {
               <Label className="text-gray-400">Nome *</Label>
               <Input
                 value={formData.nome}
-                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value.toUpperCase() })}
                 className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                 required
                 data-testid="visitor-nome-input"
@@ -384,7 +740,7 @@ const Visitors = () => {
                   value={formData.placa}
                   onChange={(e) => setFormData({ ...formData, placa: e.target.value.toUpperCase() })}
                   className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
-                  placeholder="ABC-1234"
+                  placeholder="ABC1234"
                   data-testid="visitor-placa-input"
                 />
               </div>
@@ -392,7 +748,7 @@ const Visitors = () => {
                 <Label className="text-gray-400">Veículo</Label>
                 <Input
                   value={formData.veiculo}
-                  onChange={(e) => setFormData({ ...formData, veiculo: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, veiculo: e.target.value.toUpperCase() })}
                   className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                   placeholder="Modelo/Cor"
                   data-testid="visitor-veiculo-input"
@@ -461,6 +817,14 @@ const Visitors = () => {
                 <div>
                   <p className="text-xs text-gray-500">Porteiro</p>
                   <p className="text-white">{selectedVisitor.porteiro}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Status Saída</p>
+                  {selectedVisitor.hora_saida ? (
+                    <span className="badge-success flex items-center gap-1 w-fit"><CheckCircle size={12} /> Autorizado</span>
+                  ) : (
+                    <span className="badge-info">Presente</span>
+                  )}
                 </div>
               </div>
               {selectedVisitor.observacao && (

@@ -11,11 +11,11 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 class PortariaAPITester:
-    def __init__(self, base_url: str = "https://portaria-acesso.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://cipo-v1.preview.emergentagent.com"):
         self.base_url = base_url
         self.session = requests.Session()
         self.session.headers.update({'Content-Type': 'application/json'})
-        self.admin_credentials = {"email": "admin@portaria.com", "password": "admin123"}
+        self.admin_credentials = {"email": "admin@cipolatti.com", "password": "admin123"}
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
@@ -242,7 +242,132 @@ class PortariaAPITester:
             success, response = self.make_request('PUT', f'directors/{director_id}', update_data)
             self.log_test("Update Director", success, f"Updated exit time" if success else str(response))
 
+    def test_carregamentos_endpoints(self):
+        """Test carregamentos CRUD operations"""
+        print("\n🚛 Testing Carregamentos Endpoints...")
+        
+        # Create carregamento record
+        carregamento_data = {
+            "placa_carreta": "ABC1234",
+            "placa_cavalo": "XYZ5678",
+            "cubagem": "50m³",
+            "motorista": "José Silva",
+            "empresa_terceirizada": "Transportes ABC",
+            "destino": "Shopping Center Norte",
+            "observacao": "Carregamento teste"
+        }
+        success, response = self.make_request('POST', 'carregamentos', carregamento_data, expected_status=200)
+        carregamento_id = None
+        if success and 'id' in response:
+            carregamento_id = response['id']
+            self.log_test("Create Carregamento Record", True, f"Created carregamento ID: {carregamento_id}")
+        else:
+            self.log_test("Create Carregamento Record", False, str(response))
+
+        # List carregamentos
+        success, response = self.make_request('GET', 'carregamentos')
+        if success and 'items' in response:
+            self.log_test("List Carregamentos", True, f"Found {len(response['items'])} carregamento records")
+        else:
+            self.log_test("List Carregamentos", False, str(response))
+
+        # Update carregamento (add exit time)
+        if carregamento_id:
+            update_data = {"hora_saida": "16:30"}
+            success, response = self.make_request('PUT', f'carregamentos/{carregamento_id}', update_data)
+            self.log_test("Update Carregamento", success, f"Updated exit time" if success else str(response))
+
+    def test_agendamentos_endpoints(self):
+        """Test agendamentos CRUD operations"""
+        print("\n📅 Testing Agendamentos Endpoints...")
+        
+        # Create carregamento agendamento
+        agendamento_data = {
+            "tipo": "carregamento",
+            "data_prevista": "2024-12-20",
+            "hora_prevista": "14:00",
+            "placa_carreta": "TEST1234",
+            "placa_cavalo": "TEST5678",
+            "motorista": "Carlos Teste",
+            "empresa_terceirizada": "Empresa Teste",
+            "destino": "Shopping Teste",
+            "observacao": "Agendamento teste"
+        }
+        success, response = self.make_request('POST', 'agendamentos', agendamento_data, expected_status=200)
+        agendamento_id = None
+        if success and 'id' in response:
+            agendamento_id = response['id']
+            self.log_test("Create Agendamento", True, f"Created agendamento ID: {agendamento_id}")
+        else:
+            self.log_test("Create Agendamento", False, str(response))
+
+        # List agendamentos
+        success, response = self.make_request('GET', 'agendamentos')
+        if success and 'items' in response:
+            self.log_test("List Agendamentos", True, f"Found {len(response['items'])} agendamento records")
+        else:
+            self.log_test("List Agendamentos", False, str(response))
+
+        # Test dar entrada endpoint
+        if agendamento_id:
+            success, response = self.make_request('POST', f'agendamentos/{agendamento_id}/dar-entrada')
+            self.log_test("Dar Entrada Agendamento", success, f"Entrada processed" if success else str(response))
+
+    def test_uppercase_conversion(self):
+        """Test automatic uppercase conversion for license plates"""
+        print("\n🔤 Testing Uppercase Conversion...")
+        
+        # Test visitor with lowercase plate
+        visitor_data = {
+            "nome": "teste uppercase",
+            "placa": "abc1234",
+            "veiculo": "teste car",
+            "observacao": "Teste conversão"
+        }
+        success, response = self.make_request('POST', 'visitors', visitor_data, expected_status=200)
+        if success:
+            # Check if plate was converted to uppercase
+            plate_converted = response.get('placa') == 'ABC1234'
+            name_converted = response.get('nome') == 'TESTE UPPERCASE'
+            self.log_test("Uppercase Conversion - Visitor", plate_converted and name_converted, 
+                         f"Plate: {response.get('placa')}, Name: {response.get('nome')}")
+        else:
+            self.log_test("Uppercase Conversion - Visitor", False, str(response))
+
     def test_reports_endpoints(self):
+        """Test reports endpoints"""
+        print("\n📋 Testing Reports Endpoints...")
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # Test visitors report
+        success, response = self.make_request('GET', f'reports/visitors?data_inicio={yesterday}&data_fim={today}')
+        if success and 'items' in response:
+            self.log_test("Visitors Report", True, f"Report has {len(response['items'])} visitors")
+        else:
+            self.log_test("Visitors Report", False, str(response))
+
+        # Test fleet report
+        success, response = self.make_request('GET', f'reports/fleet?data_inicio={yesterday}&data_fim={today}')
+        if success and 'items' in response:
+            self.log_test("Fleet Report", True, f"Report has {len(response['items'])} fleet records")
+        else:
+            self.log_test("Fleet Report", False, str(response))
+
+        # Test employees report
+        success, response = self.make_request('GET', f'reports/employees?data_inicio={yesterday}&data_fim={today}')
+        if success and 'items' in response:
+            self.log_test("Employees Report", True, f"Report has {len(response['items'])} employee records")
+        else:
+            self.log_test("Employees Report", False, str(response))
+
+        # Test directors report
+        success, response = self.make_request('GET', f'reports/directors?data_inicio={yesterday}&data_fim={today}')
+        if success and 'items' in response:
+            self.log_test("Directors Report", True, f"Report has {len(response['items'])} director records")
+        else:
+            self.log_test("Directors Report", False, str(response))
         """Test reports endpoints"""
         print("\n📋 Testing Reports Endpoints...")
         
@@ -337,6 +462,9 @@ class PortariaAPITester:
         self.test_fleet_endpoints()
         self.test_employees_endpoints()
         self.test_directors_endpoints()
+        self.test_carregamentos_endpoints()
+        self.test_agendamentos_endpoints()
+        self.test_uppercase_conversion()
         self.test_reports_endpoints()
         self.test_user_management_endpoints()
         self.test_logout()

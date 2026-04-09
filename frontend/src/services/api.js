@@ -96,6 +96,11 @@ export const carregamentosAPI = {
   create: (data) => api.post('/carregamentos', data),
   update: (id, data) => api.put(`/carregamentos/${id}`, data),
   delete: (id) => api.delete(`/carregamentos/${id}`),
+  uploadPhoto: (id, formData, params) => api.post(`/carregamentos/${id}/photos`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params,
+  }),
+  getPhotoUrl: (carregamentoId, photoId) => `${API}/api/carregamentos/${carregamentoId}/photos/${photoId}`,
 };
 
 // Agendamentos
@@ -106,6 +111,7 @@ export const agendamentosAPI = {
   create: (data) => api.post('/agendamentos', data),
   update: (id, data) => api.put(`/agendamentos/${id}`, data),
   delete: (id) => api.delete(`/agendamentos/${id}`),
+  darEntrada: (id) => api.post(`/agendamentos/${id}/dar-entrada`),
 };
 
 // Dashboard

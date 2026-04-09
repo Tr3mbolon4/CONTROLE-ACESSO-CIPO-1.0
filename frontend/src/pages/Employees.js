@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { employeesAPI } from '../services/api';
+import { employeesAPI, agendamentosAPI } from '../services/api';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -10,7 +10,10 @@ import {
   SignOut,
   Printer,
   CheckCircle,
-  XCircle
+  XCircle,
+  CalendarCheck,
+  SignIn,
+  Clock
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -38,6 +41,12 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/ui/tabs';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -54,11 +63,14 @@ const Employees = () => {
   const { isAdmin, isPortaria } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [employees, setEmployees] = useState([]);
+  const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('ativos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
   const [filters, setFilters] = useState({
     nome: '',
     setor: '',
@@ -78,6 +90,7 @@ const Employees = () => {
 
   useEffect(() => {
     loadEmployees();
+    loadAgendamentos();
     if (searchParams.get('action') === 'new') {
       setDialogOpen(true);
       setSearchParams({});
@@ -102,6 +115,27 @@ const Employees = () => {
       toast.error('Erro ao carregar funcionários');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAgendamentos = async () => {
+    try {
+      const response = await agendamentosAPI.list({ tipo: 'funcionario', status: 'pendente' });
+      setAgendamentos(response.data.items);
+    } catch (error) {
+      console.error('Error loading agendamentos:', error);
+    }
+  };
+
+  const handleDarEntrada = async (agendamento) => {
+    try {
+      await agendamentosAPI.darEntrada(agendamento.id);
+      toast.success('Entrada registrada com sucesso!');
+      loadEmployees();
+      loadAgendamentos();
+      setActiveTab('ativos');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Erro ao dar entrada');
     }
   };
 
@@ -173,33 +207,111 @@ const Employees = () => {
     setDialogOpen(true);
   };
 
-  const handlePrint = (employee) => {
+  const toggleSelectItem = (id) => {
+    setSelectedItems(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.length === employees.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(employees.map(e => e.id));
+    }
+  };
+
+  const handlePrintSelected = () => {
+    const itemsToPrint = employees.filter(e => selectedItems.includes(e.id));
+    if (itemsToPrint.length === 0) {
+      toast.error('Selecione pelo menos um registro para imprimir');
+      return;
+    }
+    printMultiple(itemsToPrint);
+  };
+
+  const printMultiple = (items) => {
     const printContent = `
       <html>
       <head>
-        <title>Registro de Funcionário</title>
+        <title>Registro de Funcionários - Cipolatti</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          h1 { font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-          .field { margin: 10px 0; }
-          .label { font-weight: bold; }
-          .status { padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-          .authorized { background: #dcfce7; color: #166534; }
-          .unauthorized { background: #fee2e2; color: #991b1b; }
+          @page { margin: 20mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; margin: 0; color: #333; }
+          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 20px; }
+          .logo { font-size: 28px; font-weight: bold; color: #1a1a1a; }
+          .logo span { color: #e63946; }
+          .title { font-size: 18px; color: #666; }
+          .record { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
+          .record-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+          .record-name { font-size: 16px; font-weight: bold; color: #1a1a1a; }
+          .record-auth { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+          .auth-yes { background: #dcfce7; color: #166534; }
+          .auth-no { background: #fee2e2; color: #991b1b; }
+          .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .field-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+          .field-value { font-size: 13px; color: #333; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+          .badge-present { background: #dbeafe; color: #1e40af; }
+          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #888; text-align: center; }
         </style>
       </head>
       <body>
-        <h1>REGISTRO DE FUNCIONÁRIO</h1>
-        <div class="field"><span class="label">Nome:</span> ${employee.nome}</div>
-        <div class="field"><span class="label">Setor:</span> ${employee.setor}</div>
-        <div class="field"><span class="label">Data:</span> ${employee.data}</div>
-        <div class="field"><span class="label">Entrada:</span> ${employee.hora_entrada}</div>
-        <div class="field"><span class="label">Saída:</span> ${employee.hora_saida || '-'}</div>
-        <div class="field"><span class="label">Responsável:</span> ${employee.responsavel || '-'}</div>
-        <div class="field"><span class="label">Autorizado:</span> <span class="status ${employee.autorizado ? 'authorized' : 'unauthorized'}">${employee.autorizado ? 'SIM' : 'NÃO'}</span></div>
-        <div class="field"><span class="label">Placa:</span> ${employee.placa || '-'}</div>
-        <div class="field"><span class="label">Porteiro:</span> ${employee.porteiro}</div>
-        <div class="field"><span class="label">Observação:</span> ${employee.observacao || '-'}</div>
+        <div class="header">
+          <div class="logo">CIPO<span>LATTI</span></div>
+          <div class="title">Registro de Funcionários</div>
+        </div>
+        ${items.map(employee => `
+          <div class="record">
+            <div class="record-header">
+              <div class="record-name">${employee.nome}</div>
+              <div class="record-auth ${employee.autorizado ? 'auth-yes' : 'auth-no'}">
+                ${employee.autorizado ? '✓ AUTORIZADO' : '✗ NÃO AUTORIZADO'}
+              </div>
+            </div>
+            <div class="fields">
+              <div class="field">
+                <div class="field-label">Setor</div>
+                <div class="field-value">${employee.setor}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Data</div>
+                <div class="field-value">${employee.data}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Responsável</div>
+                <div class="field-value">${employee.responsavel || '-'}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Entrada</div>
+                <div class="field-value">${employee.hora_entrada}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Saída</div>
+                <div class="field-value">
+                  ${employee.hora_saida || `<span class="badge badge-present">PRESENTE</span>`}
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-label">Placa</div>
+                <div class="field-value">${employee.placa || '-'}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Porteiro</div>
+                <div class="field-value">${employee.porteiro}</div>
+              </div>
+              ${employee.observacao ? `
+                <div class="field" style="grid-column: span 2;">
+                  <div class="field-label">Observação</div>
+                  <div class="field-value">${employee.observacao}</div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `).join('')}
+        <div class="footer">
+          Documento gerado em ${new Date().toLocaleString('pt-BR')} | Sistema de Controle de Acesso - Cipolatti
+        </div>
       </body>
       </html>
     `;
@@ -207,6 +319,18 @@ const Employees = () => {
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
+  };
+
+  const handlePrint = (employee) => {
+    printMultiple([employee]);
+  };
+
+  const getTipoPermissaoLabel = (tipo) => {
+    switch (tipo) {
+      case 'saida_antecipada': return 'Saída Antecipada';
+      case 'entrada_atrasada': return 'Entrada Atrasada';
+      default: return tipo || '-';
+    }
   };
 
   return (
@@ -217,202 +341,437 @@ const Employees = () => {
           <h1 className="text-2xl font-semibold text-white font-['Outfit']">Funcionários</h1>
           <p className="text-gray-500 mt-1">Registro de entrada e saída de funcionários</p>
         </div>
-        {(isAdmin || isPortaria) && (
-          <Button 
-            onClick={() => { resetForm(); setDialogOpen(true); }}
-            className="bg-white text-black hover:bg-gray-200"
-            data-testid="add-employee-button"
-          >
-            <Plus size={18} className="mr-2" />
-            Registrar Entrada
-          </Button>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="card-dark p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-          <div>
-            <Label className="text-gray-400 text-xs">Nome</Label>
-            <Input
-              placeholder="Buscar por nome"
-              value={filters.nome}
-              onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-nome"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Setor</Label>
-            <Input
-              placeholder="Buscar por setor"
-              value={filters.setor}
-              onChange={(e) => setFilters({ ...filters, setor: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-setor"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Autorizado</Label>
-            <Select value={filters.autorizado} onValueChange={(v) => setFilters({ ...filters, autorizado: v })}>
-              <SelectTrigger className="bg-[#0A0A0A] border-[#262626] text-white mt-1">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#141414] border-[#262626]">
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="true">Sim</SelectItem>
-                <SelectItem value="false">Não</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Data Início</Label>
-            <Input
-              type="date"
-              value={filters.data_inicio}
-              onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-data-inicio"
-            />
-          </div>
-          <div>
-            <Label className="text-gray-400 text-xs">Data Fim</Label>
-            <Input
-              type="date"
-              value={filters.data_fim}
-              onChange={(e) => setFilters({ ...filters, data_fim: e.target.value })}
-              className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-              data-testid="filter-data-fim"
-            />
-          </div>
-          <div className="flex items-end">
+        <div className="flex gap-2">
+          {selectedItems.length > 0 && (
             <Button 
-              onClick={() => { if (filters.autorizado === 'all') setFilters({...filters, autorizado: ''}); loadEmployees(); }}
-              className="w-full bg-[#262626] text-white hover:bg-[#363636]"
-              data-testid="filter-search-button"
+              onClick={handlePrintSelected}
+              variant="outline"
+              className="border-[#262626] text-white hover:bg-[#262626]"
+              data-testid="print-selected-button"
             >
-              <MagnifyingGlass size={18} className="mr-2" />
-              Buscar
+              <Printer size={18} className="mr-2" />
+              Imprimir ({selectedItems.length})
             </Button>
-          </div>
+          )}
+          {(isAdmin || isPortaria) && (
+            <Button 
+              onClick={() => { resetForm(); setDialogOpen(true); }}
+              className="bg-white text-black hover:bg-gray-200"
+              data-testid="add-employee-button"
+            >
+              <Plus size={18} className="mr-2" />
+              Registrar Entrada
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card-dark overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-[#262626] hover:bg-transparent">
-              <TableHead className="text-gray-400">Nome</TableHead>
-              <TableHead className="text-gray-400">Setor</TableHead>
-              <TableHead className="text-gray-400">Data</TableHead>
-              <TableHead className="text-gray-400">Entrada</TableHead>
-              <TableHead className="text-gray-400">Saída</TableHead>
-              <TableHead className="text-gray-400">Autorizado</TableHead>
-              <TableHead className="text-gray-400">Porteiro</TableHead>
-              <TableHead className="text-gray-400 text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-gray-500 py-8">
-                  Carregando...
-                </TableCell>
-              </TableRow>
-            ) : employees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-gray-500 py-8">
-                  Nenhum funcionário encontrado
-                </TableCell>
-              </TableRow>
-            ) : (
-              employees.map((employee) => (
-                <TableRow key={employee.id} className="border-[#262626] hover:bg-[#1F1F1F]">
-                  <TableCell className="text-white font-medium">{employee.nome}</TableCell>
-                  <TableCell className="text-gray-400">{employee.setor}</TableCell>
-                  <TableCell className="text-gray-400">{employee.data}</TableCell>
-                  <TableCell className="text-gray-400 font-mono">{employee.hora_entrada}</TableCell>
-                  <TableCell>
-                    {employee.hora_saida ? (
-                      <span className="text-gray-400 font-mono">{employee.hora_saida}</span>
-                    ) : (
-                      <span className="badge-info">Presente</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {employee.autorizado ? (
-                      <span className="badge-success flex items-center gap-1 w-fit">
-                        <CheckCircle size={14} /> Sim
-                      </span>
-                    ) : (
-                      <span className="badge-error flex items-center gap-1 w-fit">
-                        <XCircle size={14} /> Não
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-gray-400">{employee.porteiro}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setSelectedEmployee(employee); setViewDialogOpen(true); }}
-                        className="text-gray-400 hover:text-white"
-                        data-testid={`view-employee-${employee.id}`}
-                      >
-                        <Eye size={16} />
-                      </Button>
-                      {!employee.hora_saida && (isAdmin || isPortaria) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRegisterExit(employee)}
-                          className="text-yellow-400 hover:text-yellow-300"
-                          data-testid={`exit-employee-${employee.id}`}
-                        >
-                          <SignOut size={16} />
-                        </Button>
-                      )}
-                      {(isAdmin || isPortaria) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(employee)}
-                          className="text-gray-400 hover:text-white"
-                          data-testid={`edit-employee-${employee.id}`}
-                        >
-                          <Pencil size={16} />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePrint(employee)}
-                        className="text-gray-400 hover:text-white"
-                        data-testid={`print-employee-${employee.id}`}
-                      >
-                        <Printer size={16} />
-                      </Button>
-                      {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => { setSelectedEmployee(employee); setDeleteDialogOpen(true); }}
-                          className="text-red-400 hover:text-red-300"
-                          data-testid={`delete-employee-${employee.id}`}
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-[#0A0A0A] border border-[#262626]">
+          <TabsTrigger value="ativos" className="data-[state=active]:bg-[#262626]">
+            Presentes ({employees.filter(e => !e.hora_saida).length})
+          </TabsTrigger>
+          <TabsTrigger value="agendados" className="data-[state=active]:bg-[#262626]">
+            <CalendarCheck size={16} className="mr-1" />
+            Permissões ({agendamentos.length})
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="data-[state=active]:bg-[#262626]">
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Agendados/Permissões Tab */}
+        <TabsContent value="agendados" className="mt-4">
+          <div className="mb-4 p-4 bg-[#1a1a1a] border border-[#262626] rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-400">
+              <Clock size={20} />
+              <span className="font-medium">Permissões de Horário</span>
+            </div>
+            <p className="text-gray-500 text-sm mt-1">
+              Funcionários com autorização para entrada/saída fora do horário padrão
+            </p>
+          </div>
+          
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="text-gray-400">Hora Permitida</TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Setor</TableHead>
+                  <TableHead className="text-gray-400">Tipo Permissão</TableHead>
+                  <TableHead className="text-gray-400">Criado Por</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {agendamentos.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Nenhuma permissão de horário registrada
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  agendamentos.map((ag) => (
+                    <TableRow key={ag.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell className="text-white font-medium">{ag.data_prevista}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{ag.hora_permitida || ag.hora_prevista || '-'}</TableCell>
+                      <TableCell className="text-white">{ag.nome || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{ag.setor || '-'}</TableCell>
+                      <TableCell>
+                        {ag.tipo_permissao === 'saida_antecipada' ? (
+                          <span className="badge-warning flex items-center gap-1 w-fit">
+                            <SignOut size={12} /> Saída Antecipada
+                          </span>
+                        ) : ag.tipo_permissao === 'entrada_atrasada' ? (
+                          <span className="badge-info flex items-center gap-1 w-fit">
+                            <SignIn size={12} /> Entrada Atrasada
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">{ag.tipo_permissao || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-gray-400">{ag.criado_por}</TableCell>
+                      <TableCell className="text-right">
+                        {(isAdmin || isPortaria) && (
+                          <Button
+                            onClick={() => handleDarEntrada(ag)}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            size="sm"
+                            data-testid={`dar-entrada-${ag.id}`}
+                          >
+                            <SignIn size={16} className="mr-1" />
+                            Dar Entrada
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Ativos Tab */}
+        <TabsContent value="ativos" className="mt-4 space-y-4">
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400 w-10">
+                    <Checkbox
+                      checked={selectedItems.length === employees.filter(e => !e.hora_saida).length && employees.filter(e => !e.hora_saida).length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Setor</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="text-gray-400">Entrada</TableHead>
+                  <TableHead className="text-gray-400">Autorizado</TableHead>
+                  <TableHead className="text-gray-400">Status Saída</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : employees.filter(e => !e.hora_saida).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Nenhum funcionário presente
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  employees.filter(e => !e.hora_saida).map((employee) => (
+                    <TableRow key={employee.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(employee.id)}
+                          onCheckedChange={() => toggleSelectItem(employee.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-white font-medium">{employee.nome}</TableCell>
+                      <TableCell className="text-gray-400">{employee.setor}</TableCell>
+                      <TableCell className="text-gray-400">{employee.data}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{employee.hora_entrada}</TableCell>
+                      <TableCell>
+                        {employee.autorizado ? (
+                          <span className="badge-success flex items-center gap-1 w-fit">
+                            <CheckCircle size={14} /> Sim
+                          </span>
+                        ) : (
+                          <span className="badge-error flex items-center gap-1 w-fit">
+                            <XCircle size={14} /> Não
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {employee.autorizado ? (
+                          <span className="badge-success flex items-center gap-1 w-fit">
+                            <CheckCircle size={12} /> Autorizada
+                          </span>
+                        ) : (
+                          <span className="badge-error flex items-center gap-1 w-fit">
+                            <XCircle size={12} /> Não Autorizada
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedEmployee(employee); setViewDialogOpen(true); }}
+                            className="text-gray-400 hover:text-white"
+                            data-testid={`view-employee-${employee.id}`}
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegisterExit(employee)}
+                              className="text-yellow-400 hover:text-yellow-300"
+                              data-testid={`exit-employee-${employee.id}`}
+                            >
+                              <SignOut size={16} />
+                            </Button>
+                          )}
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(employee)}
+                              className="text-gray-400 hover:text-white"
+                              data-testid={`edit-employee-${employee.id}`}
+                            >
+                              <Pencil size={16} />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePrint(employee)}
+                            className="text-gray-400 hover:text-white"
+                            data-testid={`print-employee-${employee.id}`}
+                          >
+                            <Printer size={16} />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedEmployee(employee); setDeleteDialogOpen(true); }}
+                              className="text-red-400 hover:text-red-300"
+                              data-testid={`delete-employee-${employee.id}`}
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Histórico Tab */}
+        <TabsContent value="historico" className="mt-4 space-y-4">
+          {/* Filters */}
+          <div className="card-dark p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div>
+                <Label className="text-gray-400 text-xs">Nome</Label>
+                <Input
+                  placeholder="Buscar por nome"
+                  value={filters.nome}
+                  onChange={(e) => setFilters({ ...filters, nome: e.target.value.toUpperCase() })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-nome"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Setor</Label>
+                <Input
+                  placeholder="Buscar por setor"
+                  value={filters.setor}
+                  onChange={(e) => setFilters({ ...filters, setor: e.target.value.toUpperCase() })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-setor"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Autorizado</Label>
+                <Select value={filters.autorizado} onValueChange={(v) => setFilters({ ...filters, autorizado: v })}>
+                  <SelectTrigger className="bg-[#0A0A0A] border-[#262626] text-white mt-1">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#141414] border-[#262626]">
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="true">Sim</SelectItem>
+                    <SelectItem value="false">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Início</Label>
+                <Input
+                  type="date"
+                  value={filters.data_inicio}
+                  onChange={(e) => setFilters({ ...filters, data_inicio: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-data-inicio"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400 text-xs">Data Fim</Label>
+                <Input
+                  type="date"
+                  value={filters.data_fim}
+                  onChange={(e) => setFilters({ ...filters, data_fim: e.target.value })}
+                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  data-testid="filter-data-fim"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  onClick={() => { if (filters.autorizado === 'all') setFilters({...filters, autorizado: ''}); loadEmployees(); }}
+                  className="w-full bg-[#262626] text-white hover:bg-[#363636]"
+                  data-testid="filter-search-button"
+                >
+                  <MagnifyingGlass size={18} className="mr-2" />
+                  Buscar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400 w-10">
+                    <Checkbox
+                      checked={selectedItems.length === employees.length && employees.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead className="text-gray-400">Nome</TableHead>
+                  <TableHead className="text-gray-400">Setor</TableHead>
+                  <TableHead className="text-gray-400">Data</TableHead>
+                  <TableHead className="text-gray-400">Entrada</TableHead>
+                  <TableHead className="text-gray-400">Saída</TableHead>
+                  <TableHead className="text-gray-400">Autorizado</TableHead>
+                  <TableHead className="text-gray-400">Porteiro</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : employees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-gray-500 py-8">
+                      Nenhum funcionário encontrado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  employees.map((employee) => (
+                    <TableRow key={employee.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(employee.id)}
+                          onCheckedChange={() => toggleSelectItem(employee.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-white font-medium">{employee.nome}</TableCell>
+                      <TableCell className="text-gray-400">{employee.setor}</TableCell>
+                      <TableCell className="text-gray-400">{employee.data}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{employee.hora_entrada}</TableCell>
+                      <TableCell>
+                        {employee.hora_saida ? (
+                          <span className="text-gray-400 font-mono">{employee.hora_saida}</span>
+                        ) : (
+                          <span className="badge-info">Presente</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {employee.autorizado ? (
+                          <span className="badge-success flex items-center gap-1 w-fit">
+                            <CheckCircle size={14} /> Sim
+                          </span>
+                        ) : (
+                          <span className="badge-error flex items-center gap-1 w-fit">
+                            <XCircle size={14} /> Não
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-gray-400">{employee.porteiro}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedEmployee(employee); setViewDialogOpen(true); }}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          {!employee.hora_saida && (isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegisterExit(employee)}
+                              className="text-yellow-400 hover:text-yellow-300"
+                            >
+                              <SignOut size={16} />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePrint(employee)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Printer size={16} />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedEmployee(employee); setDeleteDialogOpen(true); }}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -427,7 +786,7 @@ const Employees = () => {
               <Label className="text-gray-400">Nome *</Label>
               <Input
                 value={formData.nome}
-                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value.toUpperCase() })}
                 className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                 required
                 data-testid="employee-nome-input"
@@ -438,7 +797,7 @@ const Employees = () => {
                 <Label className="text-gray-400">Setor *</Label>
                 <Input
                   value={formData.setor}
-                  onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, setor: e.target.value.toUpperCase() })}
                   className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                   required
                   data-testid="employee-setor-input"
@@ -448,7 +807,7 @@ const Employees = () => {
                 <Label className="text-gray-400">Responsável</Label>
                 <Input
                   value={formData.responsavel}
-                  onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, responsavel: e.target.value.toUpperCase() })}
                   className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                   data-testid="employee-responsavel-input"
                 />
@@ -460,7 +819,7 @@ const Employees = () => {
                 value={formData.placa}
                 onChange={(e) => setFormData({ ...formData, placa: e.target.value.toUpperCase() })}
                 className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
-                placeholder="ABC-1234"
+                placeholder="ABC1234"
                 data-testid="employee-placa-input"
               />
             </div>
@@ -549,6 +908,18 @@ const Employees = () => {
                 <div>
                   <p className="text-xs text-gray-500">Porteiro</p>
                   <p className="text-white">{selectedEmployee.porteiro}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Status Saída</p>
+                  {selectedEmployee.autorizado ? (
+                    <span className="badge-success flex items-center gap-1 w-fit">
+                      <CheckCircle size={12} /> Saída Autorizada
+                    </span>
+                  ) : (
+                    <span className="badge-error flex items-center gap-1 w-fit">
+                      <XCircle size={12} /> Não Autorizada
+                    </span>
+                  )}
                 </div>
               </div>
               {selectedEmployee.observacao && (

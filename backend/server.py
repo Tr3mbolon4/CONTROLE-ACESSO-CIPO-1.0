@@ -258,7 +258,7 @@ class CarregamentoUpdate(BaseModel):
 # ================== AGENDAMENTO MODELS ==================
 
 class AgendamentoCreate(BaseModel):
-    tipo: str  # carregamento, visitante, funcionario, diretoria
+    tipo: str  # carregamento, visitante, funcionario, diretoria, frota
     data_prevista: str
     hora_prevista: Optional[str] = None
     # Campos para carregamento
@@ -272,6 +272,14 @@ class AgendamentoCreate(BaseModel):
     nome: Optional[str] = None
     placa: Optional[str] = None
     observacao: Optional[str] = None
+    # Campos para funcionário - permissão de horário
+    setor: Optional[str] = None
+    responsavel: Optional[str] = None
+    tipo_permissao: Optional[str] = None  # saida_antecipada, entrada_atrasada
+    hora_permitida: Optional[str] = None
+    # Campos para frota
+    carro: Optional[str] = None
+    km_saida: Optional[float] = None
 
 class AgendamentoUpdate(BaseModel):
     data_prevista: Optional[str] = None
@@ -286,6 +294,28 @@ class AgendamentoUpdate(BaseModel):
     placa: Optional[str] = None
     observacao: Optional[str] = None
     status: Optional[str] = None
+    # Campos para funcionário - permissão de horário
+    setor: Optional[str] = None
+    responsavel: Optional[str] = None
+    tipo_permissao: Optional[str] = None
+    hora_permitida: Optional[str] = None
+    # Campos para frota
+    carro: Optional[str] = None
+    km_saida: Optional[float] = None
+
+# ================== HELPER: NORMALIZAÇÃO DE DADOS ==================
+
+def normalize_text(text: Optional[str]) -> Optional[str]:
+    """Converte texto para MAIÚSCULO"""
+    if text:
+        return text.upper().strip()
+    return text
+
+def normalize_placa(placa: Optional[str]) -> Optional[str]:
+    """Converte placa para MAIÚSCULO e remove espaços"""
+    if placa:
+        return placa.upper().replace(" ", "").strip()
+    return placa
 
 # ================== STARTUP ==================
 
@@ -318,9 +348,9 @@ async def lifespan(app: FastAPI):
     # Write test credentials
     os.makedirs("/app/memory", exist_ok=True)
     with open("/app/memory/test_credentials.md", "w") as f:
-        f.write(f"# Test Credentials\n\n")
+        f.write("# Test Credentials\n\n")
         f.write(f"## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n")
-        f.write(f"## Auth Endpoints\n- POST /api/auth/login\n- POST /api/auth/register\n- POST /api/auth/logout\n- GET /api/auth/me\n- POST /api/auth/refresh\n")
+        f.write("## Auth Endpoints\n- POST /api/auth/login\n- POST /api/auth/register\n- POST /api/auth/logout\n- GET /api/auth/me\n- POST /api/auth/refresh\n")
     
     # Init storage
     init_storage()
@@ -499,9 +529,9 @@ async def create_visitor(data: VisitorCreate, request: Request):
     
     now = datetime.now(timezone.utc)
     doc = {
-        "nome": data.nome,
-        "placa": data.placa,
-        "veiculo": data.veiculo,
+        "nome": normalize_text(data.nome),
+        "placa": normalize_placa(data.placa),
+        "veiculo": normalize_text(data.veiculo),
         "observacao": data.observacao,
         "data": now.strftime("%Y-%m-%d"),
         "hora_entrada": now.strftime("%H:%M"),
@@ -829,11 +859,11 @@ async def create_employee(data: EmployeeCreate, request: Request):
     
     now = datetime.now(timezone.utc)
     doc = {
-        "nome": data.nome,
-        "setor": data.setor,
-        "responsavel": data.responsavel,
+        "nome": normalize_text(data.nome),
+        "setor": normalize_text(data.setor),
+        "responsavel": normalize_text(data.responsavel),
         "autorizado": data.autorizado,
-        "placa": data.placa,
+        "placa": normalize_placa(data.placa),
         "observacao": data.observacao,
         "data": now.strftime("%Y-%m-%d"),
         "hora_entrada": now.strftime("%H:%M"),
@@ -953,9 +983,9 @@ async def create_director(data: DirectorCreate, request: Request):
     
     now = datetime.now(timezone.utc)
     doc = {
-        "nome": data.nome,
-        "placa": data.placa,
-        "carro": data.carro,
+        "nome": normalize_text(data.nome),
+        "placa": normalize_placa(data.placa),
+        "carro": normalize_text(data.carro),
         "observacao": data.observacao,
         "data": now.strftime("%Y-%m-%d"),
         "hora_entrada": now.strftime("%H:%M"),
@@ -1403,23 +1433,31 @@ async def delete_carregamento(carregamento_id: str, request: Request):
 @api_router.post("/agendamentos")
 async def create_agendamento(data: AgendamentoCreate, request: Request):
     user = await get_current_user(request)
-    await check_role(user, ["admin", "gestor", "dsl"])
+    await check_role(user, ["admin", "gestor", "dsl", "portaria"])
     
     now = datetime.now(timezone.utc)
     doc = {
         "tipo": data.tipo,
         "data_prevista": data.data_prevista,
         "hora_prevista": data.hora_prevista,
-        "placa_carreta": data.placa_carreta.upper() if data.placa_carreta else None,
-        "placa_cavalo": data.placa_cavalo.upper() if data.placa_cavalo else None,
+        "placa_carreta": normalize_placa(data.placa_carreta),
+        "placa_cavalo": normalize_placa(data.placa_cavalo),
         "cubagem": data.cubagem,
-        "motorista": data.motorista,
-        "empresa_terceirizada": data.empresa_terceirizada,
-        "destino": data.destino,
-        "nome": data.nome,
-        "placa": data.placa.upper() if data.placa else None,
+        "motorista": normalize_text(data.motorista),
+        "empresa_terceirizada": normalize_text(data.empresa_terceirizada),
+        "destino": normalize_text(data.destino),
+        "nome": normalize_text(data.nome),
+        "placa": normalize_placa(data.placa),
         "observacao": data.observacao,
         "status": "pendente",
+        # Campos para funcionário - permissão de horário
+        "setor": normalize_text(data.setor),
+        "responsavel": normalize_text(data.responsavel),
+        "tipo_permissao": data.tipo_permissao,
+        "hora_permitida": data.hora_permitida,
+        # Campos para frota
+        "carro": normalize_text(data.carro),
+        "km_saida": data.km_saida,
         "criado_por": user.get("name", ""),
         "criado_por_id": user.get("id", ""),
         "created_at": now,
@@ -1547,6 +1585,231 @@ async def delete_agendamento(agendamento_id: str, request: Request):
     await check_role(user, ["admin", "gestor", "dsl"])
     await db.agendamentos.delete_one({"_id": ObjectId(agendamento_id)})
     return {"message": "Agendamento deleted"}
+
+# ================== DAR ENTRADA (Converter agendamento em registro ativo) ==================
+
+@api_router.post("/agendamentos/{agendamento_id}/dar-entrada")
+async def dar_entrada_agendamento(agendamento_id: str, request: Request):
+    """Converte um agendamento em registro ativo no módulo correspondente"""
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "portaria"])
+    
+    agendamento = await db.agendamentos.find_one({"_id": ObjectId(agendamento_id)})
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+    
+    if agendamento.get("status") != "pendente":
+        raise HTTPException(status_code=400, detail="Agendamento já foi processado")
+    
+    now = datetime.now(timezone.utc)
+    tipo = agendamento.get("tipo")
+    result = None
+    
+    if tipo == "carregamento":
+        doc = {
+            "placa_carreta": agendamento.get("placa_carreta"),
+            "placa_cavalo": agendamento.get("placa_cavalo"),
+            "cubagem": agendamento.get("cubagem"),
+            "motorista": agendamento.get("motorista"),
+            "empresa_terceirizada": agendamento.get("empresa_terceirizada"),
+            "destino": agendamento.get("destino"),
+            "observacao": agendamento.get("observacao"),
+            "data": now.strftime("%Y-%m-%d"),
+            "hora_entrada": now.strftime("%H:%M"),
+            "hora_saida": None,
+            "status": "em_carregamento",
+            "agendamento_id": agendamento_id,
+            "porteiro_entrada": user.get("name", ""),
+            "porteiro_entrada_id": user.get("id", ""),
+            "porteiro_saida": None,
+            "porteiro_saida_id": None,
+            "fotos": [],
+            "created_at": now,
+            "updated_at": now
+        }
+        result = await db.carregamentos.insert_one(doc)
+        
+    elif tipo == "visitante":
+        doc = {
+            "nome": agendamento.get("nome"),
+            "placa": agendamento.get("placa"),
+            "veiculo": agendamento.get("veiculo"),
+            "observacao": agendamento.get("observacao"),
+            "data": now.strftime("%Y-%m-%d"),
+            "hora_entrada": now.strftime("%H:%M"),
+            "hora_saida": None,
+            "agendamento_id": agendamento_id,
+            "porteiro": user.get("name", ""),
+            "porteiro_id": user.get("id", ""),
+            "created_at": now,
+            "updated_at": now
+        }
+        result = await db.visitors.insert_one(doc)
+        
+    elif tipo == "funcionario":
+        doc = {
+            "nome": agendamento.get("nome"),
+            "setor": agendamento.get("setor"),
+            "responsavel": agendamento.get("responsavel"),
+            "autorizado": True,
+            "placa": agendamento.get("placa"),
+            "observacao": agendamento.get("observacao"),
+            "tipo_permissao": agendamento.get("tipo_permissao"),
+            "hora_permitida": agendamento.get("hora_permitida"),
+            "data": now.strftime("%Y-%m-%d"),
+            "hora_entrada": now.strftime("%H:%M"),
+            "hora_saida": None,
+            "agendamento_id": agendamento_id,
+            "porteiro": user.get("name", ""),
+            "porteiro_id": user.get("id", ""),
+            "created_at": now,
+            "updated_at": now
+        }
+        result = await db.employees.insert_one(doc)
+        
+    elif tipo == "diretoria":
+        doc = {
+            "nome": agendamento.get("nome"),
+            "placa": agendamento.get("placa"),
+            "carro": agendamento.get("carro"),
+            "observacao": agendamento.get("observacao"),
+            "data": now.strftime("%Y-%m-%d"),
+            "hora_entrada": now.strftime("%H:%M"),
+            "hora_saida_almoco": None,
+            "hora_retorno_almoco": None,
+            "hora_saida": None,
+            "status": "presente",
+            "agendamento_id": agendamento_id,
+            "porteiro": user.get("name", ""),
+            "porteiro_id": user.get("id", ""),
+            "created_at": now,
+            "updated_at": now
+        }
+        result = await db.directors.insert_one(doc)
+        
+    elif tipo == "frota":
+        doc = {
+            "carro": agendamento.get("carro"),
+            "placa": agendamento.get("placa"),
+            "motorista": agendamento.get("motorista"),
+            "destino": agendamento.get("destino"),
+            "km_saida": agendamento.get("km_saida") or 0,
+            "km_retorno": None,
+            "km_rodado": None,
+            "data_saida": now.strftime("%Y-%m-%d"),
+            "hora_saida": now.strftime("%H:%M"),
+            "data_retorno": None,
+            "hora_retorno": None,
+            "porteiro_saida": user.get("name", ""),
+            "porteiro_saida_id": user.get("id", ""),
+            "porteiro_retorno": None,
+            "porteiro_retorno_id": None,
+            "observacao": agendamento.get("observacao"),
+            "status": "em_uso",
+            "agendamento_id": agendamento_id,
+            "fotos_saida": [],
+            "fotos_retorno": [],
+            "created_at": now,
+            "updated_at": now
+        }
+        result = await db.fleet.insert_one(doc)
+    else:
+        raise HTTPException(status_code=400, detail=f"Tipo de agendamento inválido: {tipo}")
+    
+    # Atualizar status do agendamento
+    await db.agendamentos.update_one(
+        {"_id": ObjectId(agendamento_id)},
+        {"$set": {"status": "em_andamento", "updated_at": now}}
+    )
+    
+    # Log history
+    await db.history.insert_one({
+        "collection": "agendamentos",
+        "document_id": agendamento_id,
+        "action": "dar_entrada",
+        "user_id": user.get("id"),
+        "user_name": user.get("name"),
+        "timestamp": now,
+        "changes": {"status": "em_andamento", "registro_id": str(result.inserted_id)}
+    })
+    
+    return {
+        "message": "Entrada registrada com sucesso",
+        "tipo": tipo,
+        "registro_id": str(result.inserted_id)
+    }
+
+# ================== CARREGAMENTO PHOTOS ==================
+
+@api_router.post("/carregamentos/{carregamento_id}/photos")
+async def upload_carregamento_photo(
+    carregamento_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    categoria: str = Query("geral", description="Categoria da foto: geral, placa, motorista, carga")
+):
+    user = await get_current_user(request)
+    await check_role(user, ["admin", "portaria"])
+    
+    carregamento = await db.carregamentos.find_one({"_id": ObjectId(carregamento_id)})
+    if not carregamento:
+        raise HTTPException(status_code=404, detail="Carregamento não encontrado")
+    
+    # Upload to storage
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    path = f"{APP_NAME}/carregamentos/{carregamento_id}/{categoria}_{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    
+    try:
+        result = put_object(path, data, file.content_type or "image/jpeg")
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Falha ao enviar foto")
+    
+    photo_doc = {
+        "id": str(uuid.uuid4()),
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": file.content_type,
+        "categoria": categoria,
+        "uploaded_by": user.get("name"),
+        "uploaded_by_id": user.get("id"),
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.carregamentos.update_one(
+        {"_id": ObjectId(carregamento_id)},
+        {"$push": {"fotos": photo_doc}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+    )
+    
+    return photo_doc
+
+@api_router.get("/carregamentos/{carregamento_id}/photos/{photo_id}")
+async def get_carregamento_photo(carregamento_id: str, photo_id: str, request: Request):
+    try:
+        await get_current_user(request)
+    except:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    
+    carregamento = await db.carregamentos.find_one({"_id": ObjectId(carregamento_id)})
+    if not carregamento:
+        raise HTTPException(status_code=404, detail="Carregamento não encontrado")
+    
+    photo = None
+    for p in carregamento.get("fotos", []):
+        if p.get("id") == photo_id:
+            photo = p
+            break
+    
+    if not photo:
+        raise HTTPException(status_code=404, detail="Foto não encontrada")
+    
+    try:
+        data, content_type = get_object(photo["storage_path"])
+        return Response(content=data, media_type=photo.get("content_type", content_type))
+    except Exception as e:
+        logger.error(f"Falha ao obter foto: {e}")
+        raise HTTPException(status_code=500, detail="Falha ao obter foto")
 
 @api_router.get("/reports/carregamentos")
 async def report_carregamentos(

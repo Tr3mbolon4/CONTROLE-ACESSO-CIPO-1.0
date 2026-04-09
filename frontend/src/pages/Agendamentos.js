@@ -59,6 +59,12 @@ const TIPOS = [
   { value: 'visitante', label: 'Visitante' },
   { value: 'funcionario', label: 'Funcionário' },
   { value: 'diretoria', label: 'Diretoria' },
+  { value: 'frota', label: 'Frota' },
+];
+
+const TIPOS_PERMISSAO = [
+  { value: 'saida_antecipada', label: 'Saída Antecipada' },
+  { value: 'entrada_atrasada', label: 'Entrada Atrasada' },
 ];
 
 const Agendamentos = () => {
@@ -93,7 +99,15 @@ const Agendamentos = () => {
     destino: '',
     nome: '',
     placa: '',
-    observacao: ''
+    observacao: '',
+    // Campos para funcionário - permissão de horário
+    setor: '',
+    responsavel: '',
+    tipo_permissao: '',
+    hora_permitida: '',
+    // Campos para frota
+    carro: '',
+    km_saida: ''
   });
 
   useEffect(() => {
@@ -172,7 +186,13 @@ const Agendamentos = () => {
       destino: '',
       nome: '',
       placa: '',
-      observacao: ''
+      observacao: '',
+      setor: '',
+      responsavel: '',
+      tipo_permissao: '',
+      hora_permitida: '',
+      carro: '',
+      km_saida: ''
     });
     setSelectedAgendamento(null);
   };
@@ -191,7 +211,13 @@ const Agendamentos = () => {
       destino: agendamento.destino || '',
       nome: agendamento.nome || '',
       placa: agendamento.placa || '',
-      observacao: agendamento.observacao || ''
+      observacao: agendamento.observacao || '',
+      setor: agendamento.setor || '',
+      responsavel: agendamento.responsavel || '',
+      tipo_permissao: agendamento.tipo_permissao || '',
+      hora_permitida: agendamento.hora_permitida || '',
+      carro: agendamento.carro || '',
+      km_saida: agendamento.km_saida || ''
     });
     setDialogOpen(true);
   };
@@ -243,6 +269,9 @@ const Agendamentos = () => {
           </TabsTrigger>
           <TabsTrigger value="diretoria" className="data-[state=active]:bg-[#262626]">
             Diretoria
+          </TabsTrigger>
+          <TabsTrigger value="frota" className="data-[state=active]:bg-[#262626]">
+            Frota
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -516,13 +545,13 @@ const Agendamentos = () => {
               </>
             )}
 
-            {formData.tipo !== 'carregamento' && (
+            {formData.tipo !== 'carregamento' && formData.tipo !== 'frota' && (
               <>
                 <div>
                   <Label className="text-gray-400">Nome</Label>
                   <Input
                     value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value.toUpperCase() })}
                     className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                   />
                 </div>
@@ -532,6 +561,106 @@ const Agendamentos = () => {
                     value={formData.placa}
                     onChange={(e) => setFormData({ ...formData, placa: e.target.value.toUpperCase() })}
                     className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Campos específicos para Funcionário - Permissão de Horário */}
+            {formData.tipo === 'funcionario' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">Setor</Label>
+                    <Input
+                      value={formData.setor}
+                      onChange={(e) => setFormData({ ...formData, setor: e.target.value.toUpperCase() })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">Responsável</Label>
+                    <Input
+                      value={formData.responsavel}
+                      onChange={(e) => setFormData({ ...formData, responsavel: e.target.value.toUpperCase() })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">Tipo de Permissão</Label>
+                    <Select value={formData.tipo_permissao} onValueChange={(v) => setFormData({ ...formData, tipo_permissao: v })}>
+                      <SelectTrigger className="bg-[#0A0A0A] border-[#262626] text-white mt-1">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#141414] border-[#262626]">
+                        {TIPOS_PERMISSAO.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">Hora Permitida</Label>
+                    <Input
+                      type="time"
+                      value={formData.hora_permitida}
+                      onChange={(e) => setFormData({ ...formData, hora_permitida: e.target.value })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Campos específicos para Frota */}
+            {formData.tipo === 'frota' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">Carro</Label>
+                    <Input
+                      value={formData.carro}
+                      onChange={(e) => setFormData({ ...formData, carro: e.target.value.toUpperCase() })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                      placeholder="Ex: Fiat Strada"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">Placa</Label>
+                    <Input
+                      value={formData.placa}
+                      onChange={(e) => setFormData({ ...formData, placa: e.target.value.toUpperCase() })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">Motorista</Label>
+                    <Input
+                      value={formData.motorista}
+                      onChange={(e) => setFormData({ ...formData, motorista: e.target.value.toUpperCase() })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">KM Saída</Label>
+                    <Input
+                      type="number"
+                      value={formData.km_saida}
+                      onChange={(e) => setFormData({ ...formData, km_saida: e.target.value })}
+                      className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-gray-400">Destino</Label>
+                  <Input
+                    value={formData.destino}
+                    onChange={(e) => setFormData({ ...formData, destino: e.target.value.toUpperCase() })}
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
                   />
                 </div>
               </>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fleetAPI } from '../services/api';
+import { fleetAPI, agendamentosAPI } from '../services/api';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -13,7 +13,9 @@ import {
   X,
   Download,
   CaretLeft,
-  CaretRight
+  CaretRight,
+  CalendarCheck,
+  SignIn
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -76,7 +78,9 @@ const Fleet = () => {
   const { isAdmin, isPortaria } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [fleet, setFleet] = useState([]);
+  const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('em_uso');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -117,6 +121,7 @@ const Fleet = () => {
 
   useEffect(() => {
     loadFleet();
+    loadAgendamentos();
     if (searchParams.get('action') === 'new') {
       setDialogOpen(true);
       setSearchParams({});
@@ -140,6 +145,27 @@ const Fleet = () => {
       toast.error('Erro ao carregar frota');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAgendamentos = async () => {
+    try {
+      const response = await agendamentosAPI.list({ tipo: 'frota', status: 'pendente' });
+      setAgendamentos(response.data.items);
+    } catch (error) {
+      console.error('Error loading agendamentos:', error);
+    }
+  };
+
+  const handleDarEntrada = async (agendamento) => {
+    try {
+      await agendamentosAPI.darEntrada(agendamento.id);
+      toast.success('Saída registrada com sucesso!');
+      loadFleet();
+      loadAgendamentos();
+      setActiveTab('em_uso');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Erro ao registrar saída');
     }
   };
 
@@ -333,6 +359,182 @@ const Fleet = () => {
         )}
       </div>
 
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-[#0A0A0A] border border-[#262626]">
+          <TabsTrigger value="em_uso" className="data-[state=active]:bg-[#262626]">
+            Em Uso ({fleet.filter(f => f.status === 'em_uso').length})
+          </TabsTrigger>
+          <TabsTrigger value="agendados" className="data-[state=active]:bg-[#262626]">
+            <CalendarCheck size={16} className="mr-1" />
+            Agendados ({agendamentos.length})
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="data-[state=active]:bg-[#262626]">
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Agendados Tab */}
+        <TabsContent value="agendados" className="mt-4">
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400">Data Prevista</TableHead>
+                  <TableHead className="text-gray-400">Hora</TableHead>
+                  <TableHead className="text-gray-400">Carro</TableHead>
+                  <TableHead className="text-gray-400">Placa</TableHead>
+                  <TableHead className="text-gray-400">Motorista</TableHead>
+                  <TableHead className="text-gray-400">Destino</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agendamentos.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      Nenhum veículo agendado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  agendamentos.map((ag) => (
+                    <TableRow key={ag.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell className="text-white font-medium">{ag.data_prevista}</TableCell>
+                      <TableCell className="text-gray-400 font-mono">{ag.hora_prevista || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{ag.carro || '-'}</TableCell>
+                      <TableCell className="text-white font-mono">{ag.placa || '-'}</TableCell>
+                      <TableCell className="text-white">{ag.motorista || ag.nome || '-'}</TableCell>
+                      <TableCell className="text-gray-400">{ag.destino || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {(isAdmin || isPortaria) && (
+                          <Button
+                            onClick={() => handleDarEntrada(ag)}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            size="sm"
+                            data-testid={`dar-entrada-${ag.id}`}
+                          >
+                            <SignIn size={16} className="mr-1" />
+                            Registrar Saída
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Em Uso Tab */}
+        <TabsContent value="em_uso" className="mt-4 space-y-4">
+          {/* Table Em Uso */}
+          <div className="card-dark overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#262626] hover:bg-transparent">
+                  <TableHead className="text-gray-400">Placa</TableHead>
+                  <TableHead className="text-gray-400">Carro</TableHead>
+                  <TableHead className="text-gray-400">Motorista</TableHead>
+                  <TableHead className="text-gray-400">Destino</TableHead>
+                  <TableHead className="text-gray-400">Saída</TableHead>
+                  <TableHead className="text-gray-400 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : fleet.filter(f => f.status === 'em_uso').length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      Nenhum veículo em uso
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  fleet.filter(f => f.status === 'em_uso').map((item) => (
+                    <TableRow key={item.id} className="border-[#262626] hover:bg-[#1F1F1F]">
+                      <TableCell className="text-white font-mono font-medium">{item.placa}</TableCell>
+                      <TableCell className="text-gray-400">{item.carro}</TableCell>
+                      <TableCell className="text-white">{item.motorista}</TableCell>
+                      <TableCell className="text-gray-400">{item.destino}</TableCell>
+                      <TableCell className="text-gray-400">
+                        <span className="font-mono">{item.hora_saida}</span>
+                        <span className="text-gray-600 ml-1 text-xs">{item.data_saida}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSelectedFleet(item); setViewDialogOpen(true); }}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openPhotoDialog(item, 'saida')}
+                              className="text-blue-400 hover:text-blue-300"
+                            >
+                              <Camera size={16} />
+                            </Button>
+                          )}
+                          {(item.fotos_saida?.length > 0 || item.fotos_retorno?.length > 0) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openGallery(item)}
+                              className="text-purple-400 hover:text-purple-300"
+                            >
+                              <ImageIcon size={16} />
+                            </Button>
+                          )}
+                          {(isAdmin || isPortaria) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openReturnDialog(item)}
+                              className="text-green-400 hover:text-green-300"
+                            >
+                              <ArrowUDownLeft size={16} />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePrint(item)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <Printer size={16} />
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setSelectedFleet(item); setDeleteDialogOpen(true); }}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash size={16} />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* Histórico Tab */}
+        <TabsContent value="historico" className="mt-4 space-y-4">
       {/* Filters */}
       <div className="card-dark p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -532,6 +734,8 @@ const Fleet = () => {
           </TableBody>
         </Table>
       </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
