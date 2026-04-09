@@ -1,102 +1,87 @@
-# Sistema de Controle de Acesso para Portaria - PRD
+# PRD - Sistema de Controle de Acesso Cipolatti
 
-## Visão Geral
-Sistema web completo para gerenciamento de portaria empresarial com controle de visitantes, frota, funcionários e diretoria.
+## Problema Original
+Sistema de controle de acesso para portaria com gerenciamento de visitantes, funcionários, diretoria, frota e carregamentos. Necessidade de melhorias gerais no fluxo de agendamentos e operação da portaria.
 
-## Data de Criação
-08/04/2026
-
-## Tecnologias
-- **Backend**: FastAPI + MongoDB + JWT Auth
-- **Frontend**: React + Tailwind CSS + Shadcn UI
-- **Storage**: Emergent Object Storage para fotos
-- **Tema**: Dark Modern (Archetype 4 - Swiss & High-Contrast)
+## Arquitetura
+- **Backend**: FastAPI (Python) com MongoDB
+- **Frontend**: React com Tailwind CSS
+- **Autenticação**: JWT com cookies HttpOnly
 
 ## Personas
-1. **Porteiro** - Registra entradas/saídas, anexa fotos
-2. **Gestor** - Visualiza relatórios e histórico
-3. **Diretoria** - Dashboard gerencial
-4. **Administrador** - Acesso total + gerenciamento de usuários
+1. **Admin** - Acesso total ao sistema
+2. **Gestor** - Criação de agendamentos
+3. **DSL** - Criação de agendamentos
+4. **Portaria** - Registro de entrada/saída, "dar entrada" em agendamentos
+5. **Diretoria** - Visualização
 
-## Funcionalidades Implementadas ✅
+## Requisitos Core (Estáticos)
+- Controle de entrada/saída de visitantes
+- Controle de entrada/saída de funcionários
+- Controle de entrada/saída de diretoria
+- Controle de frota (saída/retorno de veículos)
+- Controle de carregamentos
+- Sistema de agendamentos
 
-### Autenticação
-- [x] Login com JWT
-- [x] Controle de perfis (Portaria, Gestor, Diretoria, Admin)
-- [x] Proteção contra brute force
-- [x] Token refresh automático
+---
 
-### Módulo Visitantes
-- [x] Registro de entrada/saída
-- [x] Filtros por nome, placa, período
-- [x] Impressão de registro
-- [x] Visualização detalhada
+## Implementado (09/04/2026)
 
-### Módulo Frota
-- [x] Registro de saída de veículo
-- [x] Registro de retorno com KM
-- [x] Cálculo automático de KM rodado
-- [x] Upload de fotos (placa, motorista, interior, etc.)
-- [x] Galeria de fotos com categorias
-- [x] Separação fotos saída/retorno
+### 1. Fluxo de Agendamento com Ação Direta
+- ✅ Aba "Agendados" em todos os módulos (Visitantes, Funcionários, Diretoria, Frota, Carregamentos)
+- ✅ Botão "Dar Entrada" para converter agendamento em registro ativo
+- ✅ Endpoint `POST /api/agendamentos/{id}/dar-entrada`
+- ✅ Status: Pendente → Em Andamento → Finalizado
 
-### Módulo Funcionários
-- [x] Registro entrada/saída
-- [x] Campo de autorização (SIM/NÃO)
-- [x] Filtro por setor
+### 2. Controle de Funcionários - Permissão de Horário
+- ✅ Campos adicionais: setor, responsável, tipo_permissao (saida_antecipada/entrada_atrasada), hora_permitida
+- ✅ Aba "Permissões" na página de Funcionários
+- ✅ Agendamentos para exceções de horário
 
-### Módulo Diretoria
-- [x] Registro rápido
-- [x] Consulta e filtros
+### 3. Padronização de Dados
+- ✅ Conversão automática para MAIÚSCULO nas placas
+- ✅ Conversão automática para MAIÚSCULO nos campos de texto (nome, motorista, setor, etc.)
+- ✅ Funções `normalize_text()` e `normalize_placa()` no backend
 
-### Dashboard
-- [x] Métricas do dia (visitantes, funcionários, frota)
-- [x] Veículos em uso
-- [x] Visitantes recentes
-- [x] Ações rápidas
-- [x] Resumo semanal
+### 4. Módulo de Carregamento com Foto
+- ✅ Upload de fotos no carregamento
+- ✅ Categorias: geral, placa, motorista, carga
+- ✅ Galeria de visualização de fotos
+- ✅ Endpoint `POST /api/carregamentos/{id}/photos`
 
-### Relatórios
-- [x] Filtros avançados por período
-- [x] Exportação PDF
-- [x] Exportação Excel
-- [x] Impressão
+### 5. Impressão Melhorada
+- ✅ Layout profissional com logo CIPOLATTI
+- ✅ Seleção múltipla para impressão em lote
+- ✅ Campos organizados com badges de status
+- ✅ Rodapé com data/hora e identificação do sistema
 
-### Configurações
-- [x] Gerenciamento de usuários
-- [x] CRUD de usuários
-- [x] Atribuição de perfis
+### 6. Controle de Saída
+- ✅ Indicação visual de saída autorizada/não autorizada
+- ✅ Badges coloridos para status
 
-### Histórico
-- [x] Registro de alterações no backend
-- [x] Quem alterou e quando
+### 7. Frota com Agendamentos
+- ✅ Aba "Agendados" na página de Frota
+- ✅ Suporte a agendamentos tipo "frota" com campos: carro, placa, motorista, destino, km_saida
+
+---
+
+## Backlog / Próximos Passos
+
+### P0 (Alta Prioridade)
+- [ ] Impressão com foto incorporada no layout
+- [ ] Exportação para PDF/Excel
+
+### P1 (Média Prioridade)
+- [ ] Notificações push para novos agendamentos
+- [ ] Dashboard de métricas avançadas
+- [ ] Relatórios comparativos por período
+
+### P2 (Baixa Prioridade)
+- [ ] Integração com catracas físicas
+- [ ] App mobile para porteiros
+- [ ] Reconhecimento de placas por câmera
+
+---
 
 ## Credenciais de Teste
-- **Admin**: admin@portaria.com / admin123
-
-## Backlog P0/P1/P2
-
-### P0 (Crítico) - Concluído
-- ✅ Sistema de autenticação
-- ✅ CRUD completo para todos os módulos
-- ✅ Dashboard funcional
-- ✅ Upload de fotos
-
-### P1 (Importante) - Pendente
-- [ ] Busca global rápida
-- [ ] Notificações em tempo real
-- [ ] Paginação nas tabelas
-
-### P2 (Desejável) - Futuro
-- [ ] Leitura automática de placa (OCR)
-- [ ] QR Code para check-in
-- [ ] Cadastro de empresas terceiras
-- [ ] Assinatura digital
-- [ ] Multiempresa
-- [ ] Auditoria completa
-
-## Próximos Passos
-1. Implementar busca global
-2. Adicionar paginação nas listagens
-3. Melhorar validações de formulário
-4. Implementar cache para dashboard
+- **Admin**: admin@cipolatti.com / admin123
