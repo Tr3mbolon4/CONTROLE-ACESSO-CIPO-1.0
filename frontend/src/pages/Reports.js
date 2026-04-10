@@ -85,6 +85,11 @@ const Reports = () => {
         case 'directors':
           response = await reportsAPI.directors(params);
           break;
+        case 'carregamentos':
+          if (filters.motorista) params.motorista = filters.motorista;
+          if (filters.destino) params.destino = filters.destino;
+          response = await reportsAPI.carregamentos(params);
+          break;
         default:
           return;
       }
@@ -108,6 +113,8 @@ const Reports = () => {
         return ['Nome', 'Setor', 'Data', 'Entrada', 'Saída', 'Autorizado', 'Placa', 'Porteiro'];
       case 'directors':
         return ['Nome', 'Data', 'Entrada', 'Saída', 'Placa', 'Carro', 'Porteiro'];
+      case 'carregamentos':
+        return ['Placa Carreta', 'Placa Cavalo', 'Motorista', 'Empresa', 'Destino', 'Data', 'Entrada', 'Saída', 'Porteiro'];
       default:
         return [];
     }
@@ -123,6 +130,8 @@ const Reports = () => {
         return [item.nome, item.setor, item.data, item.hora_entrada, item.hora_saida || '-', item.autorizado ? 'Sim' : 'Não', item.placa || '-', item.porteiro];
       case 'directors':
         return [item.nome, item.data, item.hora_entrada, item.hora_saida || '-', item.placa || '-', item.carro || '-', item.porteiro];
+      case 'carregamentos':
+        return [item.placa_carreta, item.placa_cavalo, item.motorista, item.empresa_terceirizada || '-', item.destino || '-', item.data, item.hora_entrada, item.hora_saida || '-', item.porteiro_entrada];
       default:
         return [];
     }
@@ -133,7 +142,8 @@ const Reports = () => {
       visitors: 'Visitantes',
       fleet: 'Frota',
       employees: 'Funcionários',
-      directors: 'Diretoria'
+      directors: 'Diretoria',
+      carregamentos: 'Carregamentos'
     };
     return titles[activeTab];
   };
@@ -256,6 +266,9 @@ const Reports = () => {
           </TabsTrigger>
           <TabsTrigger value="directors" className="data-[state=active]:bg-[#262626]" data-testid="tab-directors">
             Diretoria
+          </TabsTrigger>
+          <TabsTrigger value="carregamentos" className="data-[state=active]:bg-[#262626]" data-testid="tab-carregamentos">
+            Carregamentos
           </TabsTrigger>
         </TabsList>
 

@@ -14,10 +14,26 @@ import uuid
 import requests
 import io
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Any
 from contextlib import asynccontextmanager
+
+# Timezone Brasil
+BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+
+def get_brazil_now():
+    """Retorna data/hora atual no fuso horário do Brasil"""
+    return datetime.now(BRAZIL_TZ)
+
+def get_brazil_time_str():
+    """Retorna hora atual no formato HH:MM no fuso horário do Brasil"""
+    return get_brazil_now().strftime("%H:%M")
+
+def get_brazil_date_str():
+    """Retorna data atual no formato YYYY-MM-DD no fuso horário do Brasil"""
+    return get_brazil_now().strftime("%Y-%m-%d")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -527,7 +543,7 @@ async def create_visitor(data: VisitorCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "nome": normalize_text(data.nome),
         "placa": normalize_placa(data.placa),
@@ -538,8 +554,8 @@ async def create_visitor(data: VisitorCreate, request: Request):
         "hora_saida": None,
         "porteiro": user.get("name", ""),
         "porteiro_id": user.get("id", ""),
-        "created_at": now,
-        "updated_at": now
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
     
     result = await db.visitors.insert_one(doc)
@@ -641,7 +657,7 @@ async def create_fleet(data: FleetCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "carro": data.carro,
         "placa": data.placa.upper(),
@@ -662,8 +678,8 @@ async def create_fleet(data: FleetCreate, request: Request):
         "status": "em_uso",
         "fotos_saida": [],
         "fotos_retorno": [],
-        "created_at": now,
-        "updated_at": now
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
     
     result = await db.fleet.insert_one(doc)
@@ -674,7 +690,7 @@ async def create_fleet(data: FleetCreate, request: Request):
         "action": "create",
         "user_id": user.get("id"),
         "user_name": user.get("name"),
-        "timestamp": now,
+        "timestamp": datetime.now(timezone.utc),
         "changes": {"action": "saida", **data.model_dump()}
     })
     
