@@ -2,6 +2,15 @@ import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// Helper function to extract error message from API response
+export const getErrorMessage = (error, defaultMsg = 'Erro desconhecido') => {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map(d => d.msg || d.message || d).join(', ');
+  if (detail && typeof detail === 'object') return detail.msg || detail.message || defaultMsg;
+  return error?.message || defaultMsg;
+};
+
 const api = axios.create({
   baseURL: `${API}/api`,
   withCredentials: true,

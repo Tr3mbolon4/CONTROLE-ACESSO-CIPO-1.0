@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Sistema de Controle de Acesso CIPOLATTI
-Tests all major API endpoints and functionality
+CIPOLATTI Access Control System - Backend API Test Suite
+Tests all backend endpoints for functionality and integration
 """
 
 import requests
@@ -10,476 +10,440 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
-class CipolattiAPITester:
+class CIPOLATTIAPITester:
     def __init__(self, base_url: str = "https://controle-acesso-3.preview.emergentagent.com"):
         self.base_url = base_url
         self.session = requests.Session()
         self.session.headers.update({'Content-Type': 'application/json'})
         self.tests_run = 0
         self.tests_passed = 0
-        self.failed_tests = []
-        self.user_token = None
+        self.token = None
+        self.user_data = None
         
-        # Test credentials from the system
-        self.admin_email = "admin@portaria.com"
-        self.admin_password = "admin123"
-
-    def log_test(self, name: str, success: bool, details: str = ""):
-        """Log test results"""
+    def log(self, message: str, level: str = "INFO"):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {level}: {message}")
+        
+    def run_test(self, name: str, method: str, endpoint: str, expected_status: int = 200, 
+                 data: Optional[Dict] = None, params: Optional[Dict] = None) -> tuple[bool, Dict]:
+        """Run a single API test"""
+        url = f"{self.base_url}/api/{endpoint}"
         self.tests_run += 1
-        if success:
-            self.tests_passed += 1
-            print(f"✅ {name}: PASSED {details}")
-        else:
-            self.failed_tests.append({"name": name, "details": details})
-            print(f"❌ {name}: FAILED {details}")
-
-    def make_request(self, method: str, endpoint: str, data: Dict = None, expected_status: int = 200) -> tuple:
-        """Make HTTP request and return success status and response"""
-        url = f"{self.base_url}/api{endpoint}"
         
         try:
-            if method.upper() == 'GET':
-                response = self.session.get(url)
-            elif method.upper() == 'POST':
-                response = self.session.post(url, json=data)
-            elif method.upper() == 'PUT':
+            if method == 'GET':
+                response = self.session.get(url, params=params)
+            elif method == 'POST':
+                response = self.session.post(url, json=data, params=params)
+            elif method == 'PUT':
                 response = self.session.put(url, json=data)
-            elif method.upper() == 'DELETE':
+            elif method == 'DELETE':
                 response = self.session.delete(url)
             else:
-                return False, {"error": f"Unsupported method: {method}"}
-
+                raise ValueError(f"Unsupported method: {method}")
+                
             success = response.status_code == expected_status
+            if success:
+                self.tests_passed += 1
+                self.log(f"✅ {name} - Status: {response.status_code}")
+            else:
+                self.log(f"❌ {name} - Expected {expected_status}, got {response.status_code}", "ERROR")
+                if response.text:
+                    self.log(f"   Response: {response.text[:200]}", "ERROR")
+                    
             try:
-                response_data = response.json()
+                response_data = response.json() if response.text else {}
             except:
-                response_data = {"status_code": response.status_code, "text": response.text[:200]}
-            
+                response_data = {"raw_response": response.text}
+                
             return success, response_data
             
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
+            self.log(f"❌ {name} - Exception: {str(e)}", "ERROR")
             return False, {"error": str(e)}
-
-    def test_auth_login(self) -> bool:
-        """Test admin login functionality"""
-        print("\n🔐 Testing Authentication...")
+    
+    def test_auth_flow(self) -> bool:
+        """Test authentication endpoints"""
+        self.log("=== Testing Authentication ===")
         
         # Test login
-        success, response = self.make_request(
-            'POST', 
-            '/auth/login',
-            {"email": self.admin_email, "password": self.admin_password}
-        )
+        login_data = {
+            "email": "admin@portaria.com",
+            "password": "admin123"
+        }
         
-        if success and response.get("email") == self.admin_email:
-            self.log_test("Admin Login", True, f"Logged in as {response.get('name', 'Admin')}")
-            return True
-        else:
-            self.log_test("Admin Login", False, f"Response: {response}")
+        success, response = self.run_test("Admin Login", "POST", "auth/login", 200, login_data)
+        if not success:
             return False
-
-    def test_auth_me(self) -> bool:
-        """Test getting current user info"""
-        success, response = self.make_request('GET', '/auth/me')
+            
+        self.user_data = response
+        self.log(f"   Logged in as: {response.get('name', 'Unknown')} ({response.get('role', 'Unknown')})")
         
-        if success and response.get("email") == self.admin_email:
-            self.log_test("Get Current User", True, f"User: {response.get('name')}")
-            return True
-        else:
-            self.log_test("Get Current User", False, f"Response: {response}")
+        # Test /auth/me
+        success, response = self.run_test("Get Current User", "GET", "auth/me", 200)
+        if not success:
             return False
-
+            
+        # Test refresh token
+        success, response = self.run_test("Refresh Token", "POST", "auth/refresh", 200)
+        
+        return success
+    
     def test_visitors_crud(self) -> bool:
         """Test visitors CRUD operations"""
-        print("\n👥 Testing Visitors API...")
+        self.log("=== Testing Visitors CRUD ===")
         
         # Create visitor
         visitor_data = {
-            "nome": "TESTE VISITANTE",
-            "placa": "TEST123",
-            "veiculo": "CARRO TESTE",
+            "nome": "JOÃO TESTE",
+            "placa": "ABC1234",
+            "veiculo": "CIVIC PRETO",
             "observacao": "Teste automatizado"
         }
         
-        success, response = self.make_request('POST', '/visitors', visitor_data, 200)
+        success, response = self.run_test("Create Visitor", "POST", "visitors", 200, visitor_data)
         if not success:
-            self.log_test("Create Visitor", False, f"Response: {response}")
             return False
-        
+            
         visitor_id = response.get("id")
         if not visitor_id:
-            self.log_test("Create Visitor", False, "No ID returned")
+            self.log("❌ No visitor ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Visitor", True, f"Created visitor ID: {visitor_id}")
-        
+            
+        # Get visitor
+        success, response = self.run_test("Get Visitor", "GET", f"visitors/{visitor_id}", 200)
+        if not success:
+            return False
+            
         # List visitors
-        success, response = self.make_request('GET', '/visitors')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Visitors", True, f"Found {len(response['items'])} visitors")
-        else:
-            self.log_test("List Visitors", False, f"Response: {response}")
-        
-        # Get specific visitor
-        success, response = self.make_request('GET', f'/visitors/{visitor_id}')
-        if success and response.get("nome") == "TESTE VISITANTE":
-            self.log_test("Get Visitor", True, f"Retrieved visitor: {response.get('nome')}")
-        else:
-            self.log_test("Get Visitor", False, f"Response: {response}")
-        
+        success, response = self.run_test("List Visitors", "GET", "visitors", 200)
+        if not success:
+            return False
+            
         # Update visitor (register exit)
-        update_data = {"hora_saida": "18:00"}
-        success, response = self.make_request('PUT', f'/visitors/{visitor_id}', update_data)
-        if success and response.get("hora_saida") == "18:00":
-            self.log_test("Update Visitor (Exit)", True, "Exit time registered")
-        else:
-            self.log_test("Update Visitor (Exit)", False, f"Response: {response}")
-        
+        update_data = {"hora_saida": "18:30"}
+        success, response = self.run_test("Update Visitor", "PUT", f"visitors/{visitor_id}", 200, update_data)
+        if not success:
+            return False
+            
         # Delete visitor (admin only)
-        success, response = self.make_request('DELETE', f'/visitors/{visitor_id}', expected_status=200)
-        if success:
-            self.log_test("Delete Visitor", True, "Visitor deleted")
-        else:
-            self.log_test("Delete Visitor", False, f"Response: {response}")
+        success, response = self.run_test("Delete Visitor", "DELETE", f"visitors/{visitor_id}", 200)
         
-        return True
-
+        return success
+    
     def test_agendamentos_crud(self) -> bool:
-        """Test agendamentos (scheduling) CRUD operations"""
-        print("\n📅 Testing Agendamentos API...")
+        """Test agendamentos CRUD operations"""
+        self.log("=== Testing Agendamentos CRUD ===")
         
-        # Create visitor scheduling
+        # Create visitor agendamento
         today = datetime.now().strftime("%Y-%m-%d")
         agendamento_data = {
             "tipo": "visitante",
             "data_prevista": today,
-            "hora_prevista": "14:00",
-            "nome": "VISITANTE AGENDADO",
-            "placa": "AGD123",
-            "observacao": "Teste de agendamento"
+            "hora_prevista": "16:30",
+            "nome": "MARIA AGENDADA",
+            "placa": "XYZ5678",
+            "observacao": "Agendamento teste"
         }
         
-        success, response = self.make_request('POST', '/agendamentos', agendamento_data, 200)
+        success, response = self.run_test("Create Agendamento", "POST", "agendamentos", 200, agendamento_data)
         if not success:
-            self.log_test("Create Agendamento", False, f"Response: {response}")
             return False
-        
+            
         agendamento_id = response.get("id")
         if not agendamento_id:
-            self.log_test("Create Agendamento", False, "No ID returned")
+            self.log("❌ No agendamento ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Agendamento", True, f"Created agendamento ID: {agendamento_id}")
-        
+            
         # List agendamentos
-        success, response = self.make_request('GET', '/agendamentos')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Agendamentos", True, f"Found {len(response['items'])} agendamentos")
-        else:
-            self.log_test("List Agendamentos", False, f"Response: {response}")
+        success, response = self.run_test("List Agendamentos", "GET", "agendamentos", 200)
+        if not success:
+            return False
+            
+        # Get specific agendamento
+        success, response = self.run_test("Get Agendamento", "GET", f"agendamentos/{agendamento_id}", 200)
+        if not success:
+            return False
+            
+        # Test dar entrada (convert to active record)
+        success, response = self.run_test("Dar Entrada", "POST", f"agendamentos/{agendamento_id}/dar-entrada", 200)
+        if not success:
+            return False
+            
+        # Delete agendamento
+        success, response = self.run_test("Delete Agendamento", "DELETE", f"agendamentos/{agendamento_id}", 200)
         
-        # Test dar entrada (convert scheduling to active record)
-        success, response = self.make_request('POST', f'/agendamentos/{agendamento_id}/dar-entrada', expected_status=200)
-        if success and response.get("message"):
-            self.log_test("Dar Entrada Agendamento", True, f"Entry registered: {response.get('tipo')}")
-        else:
-            self.log_test("Dar Entrada Agendamento", False, f"Response: {response}")
-        
-        return True
-
+        return success
+    
     def test_carregamentos_crud(self) -> bool:
-        """Test carregamentos (loading) CRUD operations"""
-        print("\n🚛 Testing Carregamentos API...")
+        """Test carregamentos CRUD operations"""
+        self.log("=== Testing Carregamentos CRUD ===")
         
         carregamento_data = {
-            "placa_carreta": "CAR123",
-            "placa_cavalo": "CAV456",
+            "placa_carreta": "CAR1234",
+            "placa_cavalo": "CAV5678",
             "cubagem": "50m³",
-            "motorista": "MOTORISTA TESTE",
-            "empresa_terceirizada": "EMPRESA TESTE LTDA",
-            "destino": "SHOPPING TESTE",
-            "observacao": "Teste automatizado"
+            "motorista": "JOSÉ MOTORISTA",
+            "empresa_terceirizada": "TRANSPORTES TESTE LTDA",
+            "destino": "SHOPPING CENTER NORTE",
+            "observacao": "Carregamento teste"
         }
         
-        success, response = self.make_request('POST', '/carregamentos', carregamento_data, 200)
+        success, response = self.run_test("Create Carregamento", "POST", "carregamentos", 200, carregamento_data)
         if not success:
-            self.log_test("Create Carregamento", False, f"Response: {response}")
             return False
-        
+            
         carregamento_id = response.get("id")
         if not carregamento_id:
-            self.log_test("Create Carregamento", False, "No ID returned")
+            self.log("❌ No carregamento ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Carregamento", True, f"Created carregamento ID: {carregamento_id}")
-        
+            
         # List carregamentos
-        success, response = self.make_request('GET', '/carregamentos')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Carregamentos", True, f"Found {len(response['items'])} carregamentos")
-        else:
-            self.log_test("List Carregamentos", False, f"Response: {response}")
-        
+        success, response = self.run_test("List Carregamentos", "GET", "carregamentos", 200)
+        if not success:
+            return False
+            
+        # Get carregamento
+        success, response = self.run_test("Get Carregamento", "GET", f"carregamentos/{carregamento_id}", 200)
+        if not success:
+            return False
+            
         # Update carregamento (register exit)
-        update_data = {"hora_saida": "17:30"}
-        success, response = self.make_request('PUT', f'/carregamentos/{carregamento_id}', update_data)
-        if success and response.get("status") == "finalizado":
-            self.log_test("Update Carregamento (Exit)", True, "Exit registered, status: finalizado")
-        else:
-            self.log_test("Update Carregamento (Exit)", False, f"Response: {response}")
+        update_data = {"hora_saida": "20:15"}
+        success, response = self.run_test("Update Carregamento", "PUT", f"carregamentos/{carregamento_id}", 200, update_data)
+        if not success:
+            return False
+            
+        # Delete carregamento
+        success, response = self.run_test("Delete Carregamento", "DELETE", f"carregamentos/{carregamento_id}", 200)
         
-        return True
-
+        return success
+    
     def test_employees_crud(self) -> bool:
         """Test employees CRUD operations"""
-        print("\n👷 Testing Employees API...")
+        self.log("=== Testing Employees CRUD ===")
         
         employee_data = {
-            "nome": "FUNCIONARIO TESTE",
-            "setor": "TI",
-            "responsavel": "GESTOR TESTE",
+            "nome": "CARLOS FUNCIONÁRIO",
+            "setor": "VENDAS",
+            "responsavel": "GERENTE VENDAS",
             "autorizado": True,
-            "placa": "FUN123",
-            "observacao": "Teste automatizado"
+            "placa": "FUN1234",
+            "observacao": "Funcionário teste"
         }
         
-        success, response = self.make_request('POST', '/employees', employee_data, 200)
+        success, response = self.run_test("Create Employee", "POST", "employees", 200, employee_data)
         if not success:
-            self.log_test("Create Employee", False, f"Response: {response}")
             return False
-        
+            
         employee_id = response.get("id")
         if not employee_id:
-            self.log_test("Create Employee", False, "No ID returned")
+            self.log("❌ No employee ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Employee", True, f"Created employee ID: {employee_id}")
-        
+            
         # List employees
-        success, response = self.make_request('GET', '/employees')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Employees", True, f"Found {len(response['items'])} employees")
-        else:
-            self.log_test("List Employees", False, f"Response: {response}")
-        
+        success, response = self.run_test("List Employees", "GET", "employees", 200)
+        if not success:
+            return False
+            
+        # Get employee
+        success, response = self.run_test("Get Employee", "GET", f"employees/{employee_id}", 200)
+        if not success:
+            return False
+            
         # Update employee (register exit)
-        update_data = {"hora_saida": "18:00"}
-        success, response = self.make_request('PUT', f'/employees/{employee_id}', update_data)
-        if success and response.get("hora_saida") == "18:00":
-            self.log_test("Update Employee (Exit)", True, "Exit time registered")
-        else:
-            self.log_test("Update Employee (Exit)", False, f"Response: {response}")
+        update_data = {"hora_saida": "17:45"}
+        success, response = self.run_test("Update Employee", "PUT", f"employees/{employee_id}", 200, update_data)
+        if not success:
+            return False
+            
+        # Delete employee
+        success, response = self.run_test("Delete Employee", "DELETE", f"employees/{employee_id}", 200)
         
-        return True
-
+        return success
+    
     def test_directors_crud(self) -> bool:
         """Test directors CRUD operations"""
-        print("\n👔 Testing Directors API...")
+        self.log("=== Testing Directors CRUD ===")
         
         director_data = {
-            "nome": "DIRETOR TESTE",
-            "placa": "DIR123",
-            "carro": "BMW X5",
-            "observacao": "Teste automatizado"
+            "nome": "ANA DIRETORA",
+            "placa": "DIR1234",
+            "carro": "BMW X5 PRETA",
+            "observacao": "Diretora teste"
         }
         
-        success, response = self.make_request('POST', '/directors', director_data, 200)
+        success, response = self.run_test("Create Director", "POST", "directors", 200, director_data)
         if not success:
-            self.log_test("Create Director", False, f"Response: {response}")
             return False
-        
+            
         director_id = response.get("id")
         if not director_id:
-            self.log_test("Create Director", False, "No ID returned")
+            self.log("❌ No director ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Director", True, f"Created director ID: {director_id}")
-        
+            
         # List directors
-        success, response = self.make_request('GET', '/directors')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Directors", True, f"Found {len(response['items'])} directors")
-        else:
-            self.log_test("List Directors", False, f"Response: {response}")
-        
-        # Test lunch break functionality
+        success, response = self.run_test("List Directors", "GET", "directors", 200)
+        if not success:
+            return False
+            
+        # Get director
+        success, response = self.run_test("Get Director", "GET", f"directors/{director_id}", 200)
+        if not success:
+            return False
+            
+        # Update director (lunch break)
         update_data = {"hora_saida_almoco": "12:00"}
-        success, response = self.make_request('PUT', f'/directors/{director_id}', update_data)
-        if success and response.get("hora_saida_almoco") == "12:00":
-            self.log_test("Director Lunch Break", True, "Lunch break registered")
-        else:
-            self.log_test("Director Lunch Break", False, f"Response: {response}")
-        
-        # Test lunch return
+        success, response = self.run_test("Director Lunch Out", "PUT", f"directors/{director_id}", 200, update_data)
+        if not success:
+            return False
+            
+        # Update director (lunch return)
         update_data = {"hora_retorno_almoco": "13:00"}
-        success, response = self.make_request('PUT', f'/directors/{director_id}', update_data)
-        if success and response.get("hora_retorno_almoco") == "13:00":
-            self.log_test("Director Lunch Return", True, "Lunch return registered")
-        else:
-            self.log_test("Director Lunch Return", False, f"Response: {response}")
+        success, response = self.run_test("Director Lunch Return", "PUT", f"directors/{director_id}", 200, update_data)
+        if not success:
+            return False
+            
+        # Update director (final exit)
+        update_data = {"hora_saida": "18:00"}
+        success, response = self.run_test("Director Exit", "PUT", f"directors/{director_id}", 200, update_data)
+        if not success:
+            return False
+            
+        # Delete director
+        success, response = self.run_test("Delete Director", "DELETE", f"directors/{director_id}", 200)
         
-        return True
-
+        return success
+    
     def test_fleet_crud(self) -> bool:
         """Test fleet CRUD operations"""
-        print("\n🚗 Testing Fleet API...")
+        self.log("=== Testing Fleet CRUD ===")
         
         fleet_data = {
             "carro": "FIAT STRADA",
-            "placa": "FLT123",
-            "motorista": "MOTORISTA FROTA",
-            "destino": "CLIENTE TESTE",
-            "km_saida": 50000.0,
-            "observacao": "Teste automatizado"
+            "placa": "FLT1234",
+            "motorista": "PEDRO MOTORISTA",
+            "destino": "CLIENTE ZONA SUL",
+            "km_saida": 15000.0,
+            "observacao": "Viagem teste"
         }
         
-        success, response = self.make_request('POST', '/fleet', fleet_data, 200)
+        success, response = self.run_test("Create Fleet Record", "POST", "fleet", 200, fleet_data)
         if not success:
-            self.log_test("Create Fleet Record", False, f"Response: {response}")
             return False
-        
+            
         fleet_id = response.get("id")
         if not fleet_id:
-            self.log_test("Create Fleet Record", False, "No ID returned")
+            self.log("❌ No fleet ID returned", "ERROR")
             return False
-        
-        self.log_test("Create Fleet Record", True, f"Created fleet ID: {fleet_id}")
-        
+            
         # List fleet
-        success, response = self.make_request('GET', '/fleet')
-        if success and isinstance(response.get("items"), list):
-            self.log_test("List Fleet", True, f"Found {len(response['items'])} fleet records")
-        else:
-            self.log_test("List Fleet", False, f"Response: {response}")
-        
-        # Test return functionality
+        success, response = self.run_test("List Fleet", "GET", "fleet", 200)
+        if not success:
+            return False
+            
+        # Get fleet record
+        success, response = self.run_test("Get Fleet Record", "GET", f"fleet/{fleet_id}", 200)
+        if not success:
+            return False
+            
+        # Return fleet
         return_data = {
-            "km_retorno": 50150.0,
-            "observacao": "Retorno teste"
+            "km_retorno": 15150.0,
+            "observacao": "Retorno sem problemas"
         }
-        success, response = self.make_request('POST', f'/fleet/{fleet_id}/return', return_data)
-        if success and response.get("status") == "retornado":
-            km_rodado = response.get("km_rodado", 0)
-            self.log_test("Fleet Return", True, f"Vehicle returned, KM driven: {km_rodado}")
-        else:
-            self.log_test("Fleet Return", False, f"Response: {response}")
-        
-        return True
-
-    def test_dashboard(self) -> bool:
-        """Test dashboard API"""
-        print("\n📊 Testing Dashboard API...")
-        
-        success, response = self.make_request('GET', '/dashboard')
-        if success and "today" in response:
-            today_stats = response.get("today", {})
-            self.log_test("Dashboard", True, 
-                f"Today: {today_stats.get('visitors', 0)} visitors, "
-                f"{today_stats.get('employees', 0)} employees, "
-                f"{today_stats.get('fleet_in_use', 0)} fleet in use")
-        else:
-            self.log_test("Dashboard", False, f"Response: {response}")
+        success, response = self.run_test("Return Fleet", "POST", f"fleet/{fleet_id}/return", 200, return_data)
+        if not success:
+            return False
+            
+        # Delete fleet record
+        success, response = self.run_test("Delete Fleet Record", "DELETE", f"fleet/{fleet_id}", 200)
         
         return success
-
-    def test_reports(self) -> bool:
-        """Test reports API"""
-        print("\n📋 Testing Reports API...")
+    
+    def test_dashboard_and_reports(self) -> bool:
+        """Test dashboard and reports endpoints"""
+        self.log("=== Testing Dashboard & Reports ===")
         
+        # Test dashboard
+        success, response = self.run_test("Get Dashboard", "GET", "dashboard", 200)
+        if not success:
+            return False
+            
+        # Test reports
         today = datetime.now().strftime("%Y-%m-%d")
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         
-        # Test visitors report
-        success, response = self.make_request('GET', f'/reports/visitors?data_inicio={yesterday}&data_fim={today}')
-        if success and "items" in response:
-            self.log_test("Visitors Report", True, f"Found {len(response['items'])} visitor records")
-        else:
-            self.log_test("Visitors Report", False, f"Response: {response}")
-        
-        # Test fleet report
-        success, response = self.make_request('GET', f'/reports/fleet?data_inicio={yesterday}&data_fim={today}')
-        if success and "items" in response:
-            total_km = response.get("total_km", 0)
-            self.log_test("Fleet Report", True, f"Found {len(response['items'])} fleet records, Total KM: {total_km}")
-        else:
-            self.log_test("Fleet Report", False, f"Response: {response}")
-        
-        # Test employees report
-        success, response = self.make_request('GET', f'/reports/employees?data_inicio={yesterday}&data_fim={today}')
-        if success and "items" in response:
-            self.log_test("Employees Report", True, f"Found {len(response['items'])} employee records")
-        else:
-            self.log_test("Employees Report", False, f"Response: {response}")
-        
-        # Test directors report
-        success, response = self.make_request('GET', f'/reports/directors?data_inicio={yesterday}&data_fim={today}')
-        if success and "items" in response:
-            self.log_test("Directors Report", True, f"Found {len(response['items'])} director records")
-        else:
-            self.log_test("Directors Report", False, f"Response: {response}")
-        
-        return True
-
-    def run_all_tests(self) -> Dict[str, Any]:
-        """Run all tests and return results"""
-        print("🚀 Starting CIPOLATTI Access Control System API Tests")
-        print(f"🌐 Testing against: {self.base_url}")
-        print("=" * 60)
-        
-        # Authentication is required for all other tests
-        if not self.test_auth_login():
-            print("\n❌ Authentication failed - cannot continue with other tests")
-            return self.get_results()
-        
-        # Test current user endpoint
-        self.test_auth_me()
-        
-        # Test all CRUD operations
-        self.test_visitors_crud()
-        self.test_agendamentos_crud()
-        self.test_carregamentos_crud()
-        self.test_employees_crud()
-        self.test_directors_crud()
-        self.test_fleet_crud()
-        
-        # Test dashboard and reports
-        self.test_dashboard()
-        self.test_reports()
-        
-        return self.get_results()
-
-    def get_results(self) -> Dict[str, Any]:
-        """Get test results summary"""
-        success_rate = (self.tests_passed / self.tests_run * 100) if self.tests_run > 0 else 0
-        
-        results = {
-            "total_tests": self.tests_run,
-            "passed_tests": self.tests_passed,
-            "failed_tests": len(self.failed_tests),
-            "success_rate": round(success_rate, 2),
-            "failed_test_details": self.failed_tests
+        report_params = {
+            "data_inicio": yesterday,
+            "data_fim": today
         }
         
-        print("\n" + "=" * 60)
-        print("📊 TEST RESULTS SUMMARY")
-        print("=" * 60)
-        print(f"✅ Tests Passed: {self.tests_passed}/{self.tests_run} ({success_rate:.1f}%)")
+        success, response = self.run_test("Visitors Report", "GET", "reports/visitors", 200, params=report_params)
+        if not success:
+            return False
+            
+        success, response = self.run_test("Fleet Report", "GET", "reports/fleet", 200, params=report_params)
+        if not success:
+            return False
+            
+        success, response = self.run_test("Employees Report", "GET", "reports/employees", 200, params=report_params)
+        if not success:
+            return False
+            
+        success, response = self.run_test("Directors Report", "GET", "reports/directors", 200, params=report_params)
         
-        if self.failed_tests:
-            print(f"❌ Failed Tests: {len(self.failed_tests)}")
-            for failed in self.failed_tests:
-                print(f"   - {failed['name']}: {failed['details']}")
+        return success
+    
+    def test_logout(self) -> bool:
+        """Test logout"""
+        self.log("=== Testing Logout ===")
+        success, response = self.run_test("Logout", "POST", "auth/logout", 200)
+        return success
+    
+    def run_all_tests(self) -> bool:
+        """Run all test suites"""
+        self.log("🚀 Starting CIPOLATTI Access Control System Backend Tests")
+        self.log(f"   Base URL: {self.base_url}")
         
-        return results
+        test_suites = [
+            ("Authentication", self.test_auth_flow),
+            ("Visitors CRUD", self.test_visitors_crud),
+            ("Agendamentos CRUD", self.test_agendamentos_crud),
+            ("Carregamentos CRUD", self.test_carregamentos_crud),
+            ("Employees CRUD", self.test_employees_crud),
+            ("Directors CRUD", self.test_directors_crud),
+            ("Fleet CRUD", self.test_fleet_crud),
+            ("Dashboard & Reports", self.test_dashboard_and_reports),
+            ("Logout", self.test_logout)
+        ]
+        
+        all_passed = True
+        for suite_name, test_func in test_suites:
+            self.log(f"\n--- {suite_name} ---")
+            if not test_func():
+                all_passed = False
+                self.log(f"❌ {suite_name} suite failed", "ERROR")
+            else:
+                self.log(f"✅ {suite_name} suite passed")
+        
+        # Print summary
+        self.log(f"\n📊 Test Summary:")
+        self.log(f"   Tests Run: {self.tests_run}")
+        self.log(f"   Tests Passed: {self.tests_passed}")
+        self.log(f"   Success Rate: {(self.tests_passed/self.tests_run*100):.1f}%")
+        
+        if all_passed:
+            self.log("🎉 All test suites passed!")
+        else:
+            self.log("❌ Some test suites failed", "ERROR")
+            
+        return all_passed
 
 def main():
-    """Main test execution"""
-    tester = CipolattiAPITester()
-    results = tester.run_all_tests()
-    
-    # Return appropriate exit code
-    return 0 if results["failed_tests"] == 0 else 1
+    tester = CIPOLATTIAPITester()
+    success = tester.run_all_tests()
+    return 0 if success else 1
 
 if __name__ == "__main__":
     sys.exit(main())

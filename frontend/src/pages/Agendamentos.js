@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { agendamentosAPI } from '../services/api';
+import { agendamentosAPI, getErrorMessage } from '../services/api';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -87,9 +87,11 @@ const Agendamentos = () => {
     empresa: ''
   });
   
+  const today = new Date().toISOString().split('T')[0];
+  
   const [formData, setFormData] = useState({
     tipo: 'carregamento',
-    data_prevista: '',
+    data_prevista: today,
     hora_prevista: '',
     placa_carreta: '',
     placa_cavalo: '',
@@ -147,7 +149,7 @@ const Agendamentos = () => {
       resetForm();
       loadAgendamentos();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao salvar');
+      toast.error(getErrorMessage(error, 'Erro ao salvar'));
     }
   };
 
@@ -176,7 +178,7 @@ const Agendamentos = () => {
   const resetForm = () => {
     setFormData({
       tipo: activeTab,
-      data_prevista: '',
+      data_prevista: new Date().toISOString().split('T')[0],
       hora_prevista: '',
       placa_carreta: '',
       placa_cavalo: '',

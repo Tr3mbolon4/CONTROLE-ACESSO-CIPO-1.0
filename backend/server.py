@@ -56,7 +56,7 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
         "sub": user_id,
         "email": email,
         "role": role,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=8),
         "type": "access"
     }
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
@@ -279,7 +279,7 @@ class AgendamentoCreate(BaseModel):
     hora_permitida: Optional[str] = None
     # Campos para frota
     carro: Optional[str] = None
-    km_saida: Optional[float] = None
+    km_saida: Optional[str] = None  # Changed to str to handle empty strings
 
 class AgendamentoUpdate(BaseModel):
     data_prevista: Optional[str] = None
@@ -301,7 +301,7 @@ class AgendamentoUpdate(BaseModel):
     hora_permitida: Optional[str] = None
     # Campos para frota
     carro: Optional[str] = None
-    km_saida: Optional[float] = None
+    km_saida: Optional[str] = None  # Changed to str to handle empty strings
 
 # ================== HELPER: NORMALIZAÇÃO DE DADOS ==================
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fleetAPI, agendamentosAPI } from '../services/api';
+import { fleetAPI, agendamentosAPI, getErrorMessage } from '../services/api';
 import { printFleet } from '../utils/printUtils';
 import { 
   Plus, 
@@ -166,7 +166,7 @@ const Fleet = () => {
       loadAgendamentos();
       setActiveTab('em_uso');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao registrar saída');
+      toast.error(getErrorMessage(error, 'Erro ao registrar saída'));
     }
   };
 
@@ -183,7 +183,7 @@ const Fleet = () => {
       resetForm();
       loadFleet();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao registrar saída');
+      toast.error(getErrorMessage(error, 'Erro ao registrar saída'));
     }
   };
 
@@ -200,7 +200,7 @@ const Fleet = () => {
       setSelectedFleet(null);
       loadFleet();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao registrar retorno');
+      toast.error(getErrorMessage(error, 'Erro ao registrar retorno'));
     }
   };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { carregamentosAPI, agendamentosAPI } from '../services/api';
+import { carregamentosAPI, agendamentosAPI, getErrorMessage } from '../services/api';
 import { printCarregamentos } from '../utils/printUtils';
 import { 
   Plus, 
@@ -160,7 +160,7 @@ const Carregamentos = () => {
       loadAgendamentos();
       setActiveTab('em_andamento');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao dar entrada');
+      toast.error(getErrorMessage(error, 'Erro ao dar entrada'));
     }
   };
 
