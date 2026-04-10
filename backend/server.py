@@ -795,22 +795,30 @@ async def upload_fleet_photo(
     if not fleet:
         raise HTTPException(status_code=404, detail="Fleet record not found")
     
-    # Upload to storage
+    # Save file locally
     ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    path = f"{APP_NAME}/fleet/{fleet_id}/{moment}/{category}_{uuid.uuid4()}.{ext}"
-    data = await file.read()
+    photo_id = str(uuid.uuid4())
+    filename = f"{moment}_{category}_{photo_id}.{ext}"
+    
+    # Create directory if not exists
+    upload_dir = f"/app/uploads/fleet/{fleet_id}"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = f"{upload_dir}/{filename}"
     
     try:
-        result = put_object(path, data, file.content_type or "image/jpeg")
+        data = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(data)
     except Exception as e:
         logger.error(f"Upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload photo")
+        raise HTTPException(status_code=500, detail=f"Failed to upload photo: {str(e)}")
     
     photo_doc = {
-        "id": str(uuid.uuid4()),
-        "storage_path": result["path"],
+        "id": photo_id,
+        "storage_path": file_path,
         "original_filename": file.filename,
-        "content_type": file.content_type,
+        "content_type": file.content_type or "image/jpeg",
         "category": category,
         "moment": moment,
         "uploaded_by": user.get("name"),
@@ -852,11 +860,17 @@ async def get_fleet_photo(fleet_id: str, photo_id: str, request: Request, auth: 
         raise HTTPException(status_code=404, detail="Photo not found")
     
     try:
-        data, content_type = get_object(photo["storage_path"])
-        return Response(content=data, media_type=photo.get("content_type", content_type))
+        file_path = photo["storage_path"]
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Photo file not found")
+        
+        with open(file_path, "rb") as f:
+            data = f.read()
+        
+        return Response(content=data, media_type=photo.get("content_type", "image/jpeg"))
     except Exception as e:
         logger.error(f"Failed to get photo: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve photo")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve photo: {str(e)}")
 
 # ================== EMPLOYEES ==================
 
@@ -1765,22 +1779,30 @@ async def upload_carregamento_photo(
     if not carregamento:
         raise HTTPException(status_code=404, detail="Carregamento não encontrado")
     
-    # Upload to storage
+    # Save file locally
     ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    path = f"{APP_NAME}/carregamentos/{carregamento_id}/{categoria}_{uuid.uuid4()}.{ext}"
-    data = await file.read()
+    photo_id = str(uuid.uuid4())
+    filename = f"{categoria}_{photo_id}.{ext}"
+    
+    # Create directory if not exists
+    upload_dir = f"/app/uploads/carregamentos/{carregamento_id}"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = f"{upload_dir}/{filename}"
     
     try:
-        result = put_object(path, data, file.content_type or "image/jpeg")
+        data = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(data)
     except Exception as e:
         logger.error(f"Upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Falha ao enviar foto")
+        raise HTTPException(status_code=500, detail=f"Falha ao enviar foto: {str(e)}")
     
     photo_doc = {
-        "id": str(uuid.uuid4()),
-        "storage_path": result["path"],
+        "id": photo_id,
+        "storage_path": file_path,
         "original_filename": file.filename,
-        "content_type": file.content_type,
+        "content_type": file.content_type or "image/jpeg",
         "categoria": categoria,
         "uploaded_by": user.get("name"),
         "uploaded_by_id": user.get("id"),
@@ -1815,11 +1837,17 @@ async def get_carregamento_photo(carregamento_id: str, photo_id: str, request: R
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     
     try:
-        data, content_type = get_object(photo["storage_path"])
-        return Response(content=data, media_type=photo.get("content_type", content_type))
+        file_path = photo["storage_path"]
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Arquivo de foto não encontrado")
+        
+        with open(file_path, "rb") as f:
+            data = f.read()
+        
+        return Response(content=data, media_type=photo.get("content_type", "image/jpeg"))
     except Exception as e:
         logger.error(f"Falha ao obter foto: {e}")
-        raise HTTPException(status_code=500, detail="Falha ao obter foto")
+        raise HTTPException(status_code=500, detail=f"Falha ao obter foto: {str(e)}")
 
 @api_router.get("/reports/carregamentos")
 async def report_carregamentos(
