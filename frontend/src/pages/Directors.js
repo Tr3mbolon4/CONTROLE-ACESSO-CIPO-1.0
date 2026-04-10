@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { directorsAPI, agendamentosAPI } from '../services/api';
+import { printDirectors } from '../utils/printUtils';
 import { 
   Plus, 
   MagnifyingGlass, 

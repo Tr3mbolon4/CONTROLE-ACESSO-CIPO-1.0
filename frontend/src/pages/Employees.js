@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { employeesAPI, agendamentosAPI } from '../services/api';
+import { printEmployees } from '../utils/printUtils';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -227,102 +228,11 @@ const Employees = () => {
       toast.error('Selecione pelo menos um registro para imprimir');
       return;
     }
-    printMultiple(itemsToPrint);
-  };
-
-  const printMultiple = (items) => {
-    const printContent = `
-      <html>
-      <head>
-        <title>Registro de Funcionários - Cipolatti</title>
-        <style>
-          @page { margin: 20mm; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; margin: 0; color: #333; }
-          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 20px; }
-          .logo { font-size: 28px; font-weight: bold; color: #1a1a1a; }
-          .logo span { color: #e63946; }
-          .title { font-size: 18px; color: #666; }
-          .record { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-          .record-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-          .record-name { font-size: 16px; font-weight: bold; color: #1a1a1a; }
-          .record-auth { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-          .auth-yes { background: #dcfce7; color: #166534; }
-          .auth-no { background: #fee2e2; color: #991b1b; }
-          .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-          .field-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
-          .field-value { font-size: 13px; color: #333; }
-          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-          .badge-present { background: #dbeafe; color: #1e40af; }
-          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #888; text-align: center; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">CIPO<span>LATTI</span></div>
-          <div class="title">Registro de Funcionários</div>
-        </div>
-        ${items.map(employee => `
-          <div class="record">
-            <div class="record-header">
-              <div class="record-name">${employee.nome}</div>
-              <div class="record-auth ${employee.autorizado ? 'auth-yes' : 'auth-no'}">
-                ${employee.autorizado ? '✓ AUTORIZADO' : '✗ NÃO AUTORIZADO'}
-              </div>
-            </div>
-            <div class="fields">
-              <div class="field">
-                <div class="field-label">Setor</div>
-                <div class="field-value">${employee.setor}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Data</div>
-                <div class="field-value">${employee.data}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Responsável</div>
-                <div class="field-value">${employee.responsavel || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Entrada</div>
-                <div class="field-value">${employee.hora_entrada}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Saída</div>
-                <div class="field-value">
-                  ${employee.hora_saida || `<span class="badge badge-present">PRESENTE</span>`}
-                </div>
-              </div>
-              <div class="field">
-                <div class="field-label">Placa</div>
-                <div class="field-value">${employee.placa || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Porteiro</div>
-                <div class="field-value">${employee.porteiro}</div>
-              </div>
-              ${employee.observacao ? `
-                <div class="field" style="grid-column: span 2;">
-                  <div class="field-label">Observação</div>
-                  <div class="field-value">${employee.observacao}</div>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-        `).join('')}
-        <div class="footer">
-          Documento gerado em ${new Date().toLocaleString('pt-BR')} | Sistema de Controle de Acesso - Cipolatti
-        </div>
-      </body>
-      </html>
-    `;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
+    printEmployees(itemsToPrint);
   };
 
   const handlePrint = (employee) => {
-    printMultiple([employee]);
+    printEmployees([employee]);
   };
 
   const getTipoPermissaoLabel = (tipo) => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { visitorsAPI, agendamentosAPI } from '../services/api';
+import { printVisitors } from '../utils/printUtils';
 import { 
   Plus, 
   MagnifyingGlass, 
@@ -203,92 +204,11 @@ const Visitors = () => {
       toast.error('Selecione pelo menos um registro para imprimir');
       return;
     }
-    printMultiple(itemsToPrint);
-  };
-
-  const printMultiple = (items) => {
-    const printContent = `
-      <html>
-      <head>
-        <title>Registro de Visitantes - Cipolatti</title>
-        <style>
-          @page { margin: 20mm; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; margin: 0; color: #333; }
-          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 20px; }
-          .logo { font-size: 28px; font-weight: bold; color: #1a1a1a; }
-          .logo span { color: #e63946; }
-          .title { font-size: 18px; color: #666; }
-          .record { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-          .record-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-          .record-name { font-size: 16px; font-weight: bold; color: #1a1a1a; }
-          .record-date { font-size: 12px; color: #666; }
-          .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-          .field { }
-          .field-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
-          .field-value { font-size: 13px; color: #333; }
-          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-          .badge-present { background: #dcfce7; color: #166534; }
-          .badge-exit { background: #f3f4f6; color: #374151; }
-          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #888; text-align: center; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">CIPO<span>LATTI</span></div>
-          <div class="title">Registro de Visitantes</div>
-        </div>
-        ${items.map(visitor => `
-          <div class="record">
-            <div class="record-header">
-              <div class="record-name">${visitor.nome}</div>
-              <div class="record-date">${visitor.data}</div>
-            </div>
-            <div class="fields">
-              <div class="field">
-                <div class="field-label">Entrada</div>
-                <div class="field-value">${visitor.hora_entrada}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Saída</div>
-                <div class="field-value">
-                  ${visitor.hora_saida 
-                    ? `<span class="badge badge-exit">${visitor.hora_saida}</span>` 
-                    : `<span class="badge badge-present">PRESENTE</span>`}
-                </div>
-              </div>
-              <div class="field">
-                <div class="field-label">Placa</div>
-                <div class="field-value">${visitor.placa || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Veículo</div>
-                <div class="field-value">${visitor.veiculo || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Porteiro</div>
-                <div class="field-value">${visitor.porteiro}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Observação</div>
-                <div class="field-value">${visitor.observacao || '-'}</div>
-              </div>
-            </div>
-          </div>
-        `).join('')}
-        <div class="footer">
-          Documento gerado em ${new Date().toLocaleString('pt-BR')} | Sistema de Controle de Acesso - Cipolatti
-        </div>
-      </body>
-      </html>
-    `;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
+    printVisitors(itemsToPrint);
   };
 
   const handlePrint = (visitor) => {
-    printMultiple([visitor]);
+    printVisitors([visitor]);
   };
 
   return (
