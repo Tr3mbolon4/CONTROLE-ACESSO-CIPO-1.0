@@ -14,6 +14,7 @@ import uuid
 import requests
 import io
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Any
@@ -22,6 +23,13 @@ from contextlib import asynccontextmanager
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Brazil timezone
+BR_TZ = ZoneInfo("America/Sao_Paulo")
+
+def get_brazil_now():
+    """Retorna datetime atual no horário de Brasília"""
+    return datetime.now(BR_TZ)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -527,7 +535,7 @@ async def create_visitor(data: VisitorCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "nome": normalize_text(data.nome),
         "placa": normalize_placa(data.placa),
@@ -641,7 +649,7 @@ async def create_fleet(data: FleetCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "carro": data.carro,
         "placa": data.placa.upper(),
@@ -689,7 +697,7 @@ async def return_fleet(fleet_id: str, data: FleetReturn, request: Request):
     if not fleet:
         raise HTTPException(status_code=404, detail="Fleet record not found")
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     km_rodado = data.km_retorno - fleet.get("km_saida", 0)
     
     update_data = {
@@ -857,7 +865,7 @@ async def create_employee(data: EmployeeCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "nome": normalize_text(data.nome),
         "setor": normalize_text(data.setor),
@@ -981,7 +989,7 @@ async def create_director(data: DirectorCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "nome": normalize_text(data.nome),
         "placa": normalize_placa(data.placa),
@@ -1288,7 +1296,7 @@ async def create_carregamento(data: CarregamentoCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "placa_carreta": data.placa_carreta.upper(),
         "placa_cavalo": data.placa_cavalo.upper(),
@@ -1435,7 +1443,7 @@ async def create_agendamento(data: AgendamentoCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "gestor", "dsl", "portaria"])
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     doc = {
         "tipo": data.tipo,
         "data_prevista": data.data_prevista,
@@ -1601,7 +1609,7 @@ async def dar_entrada_agendamento(agendamento_id: str, request: Request):
     if agendamento.get("status") != "pendente":
         raise HTTPException(status_code=400, detail="Agendamento já foi processado")
     
-    now = datetime.now(timezone.utc)
+    now = get_brazil_now()
     tipo = agendamento.get("tipo")
     result = None
     

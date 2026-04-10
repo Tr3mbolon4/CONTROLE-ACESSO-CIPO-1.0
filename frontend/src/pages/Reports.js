@@ -437,6 +437,13 @@ const Reports = () => {
           </div>
         )}
 
+        {loading && (
+          <div className="card-dark p-12 mt-4 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p className="text-gray-400">Carregando relatório...</p>
+          </div>
+        )}
+
         {data.length === 0 && !loading && (
           <div className="card-dark p-12 mt-4 text-center">
             <FileText size={48} className="mx-auto text-gray-600 mb-4" />
