@@ -6,14 +6,14 @@ import {
   FileXls,
   MagnifyingGlass,
   Printer,
-  Download
+  Camera,
+  Image as ImageIcon
 } from '@phosphor-icons/react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from '../components/ui/tabs';
@@ -30,6 +30,11 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+// Logo CIPOLATTI em base64 para o PDF (placeholder - usar logo real)
+const LOGO_BASE64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 const Reports = () => {
   const [loading, setLoading] = useState(false);
@@ -84,12 +89,17 @@ const Reports = () => {
         case 'directors':
           response = await reportsAPI.directors(params);
           break;
+        case 'carregamentos':
+          if (filters.motorista) params.motorista = filters.motorista;
+          if (filters.destino) params.destino = filters.destino;
+          response = await reportsAPI.carregamentos(params);
+          break;
         default:
           return;
       }
       
-      setData(response.data.items);
-      setTotal(response.data.total);
+      setData(response.data.items || response.data);
+      setTotal(response.data.total || response.data.length);
     } catch (error) {
       toast.error('Erro ao gerar relatório');
     } finally {
@@ -102,11 +112,13 @@ const Reports = () => {
       case 'visitors':
         return ['Nome', 'Data', 'Entrada', 'Saída', 'Placa', 'Veículo', 'Porteiro'];
       case 'fleet':
-        return ['Placa', 'Carro', 'Motorista', 'Destino', 'Saída', 'Retorno', 'KM Rodado', 'Porteiro Saída'];
+        return ['Placa', 'Carro', 'Motorista', 'Destino', 'Saída', 'Retorno', 'KM', 'Porteiro', 'Fotos'];
       case 'employees':
         return ['Nome', 'Setor', 'Data', 'Entrada', 'Saída', 'Autorizado', 'Placa', 'Porteiro'];
       case 'directors':
         return ['Nome', 'Data', 'Entrada', 'Saída', 'Placa', 'Carro', 'Porteiro'];
+      case 'carregamentos':
+        return ['Carreta', 'Cavalo', 'Motorista', 'Empresa', 'Destino', 'Data', 'Entrada', 'Saída', 'Fotos'];
       default:
         return [];
     }
@@ -117,11 +129,15 @@ const Reports = () => {
       case 'visitors':
         return [item.nome, item.data, item.hora_entrada, item.hora_saida || '-', item.placa || '-', item.veiculo || '-', item.porteiro];
       case 'fleet':
-        return [item.placa, item.carro, item.motorista, item.destino, `${item.data_saida} ${item.hora_saida}`, item.data_retorno ? `${item.data_retorno} ${item.hora_retorno}` : '-', item.km_rodado ? `${item.km_rodado} km` : '-', item.porteiro_saida];
+        const fotosFleet = (item.fotos_saida?.length || 0) + (item.fotos_retorno?.length || 0);
+        return [item.placa, item.carro, item.motorista, item.destino, `${item.data_saida} ${item.hora_saida}`, item.data_retorno ? `${item.data_retorno} ${item.hora_retorno}` : '-', item.km_rodado ? `${item.km_rodado}` : '-', item.porteiro_saida, fotosFleet > 0 ? `${fotosFleet} foto(s)` : '-'];
       case 'employees':
         return [item.nome, item.setor, item.data, item.hora_entrada, item.hora_saida || '-', item.autorizado ? 'Sim' : 'Não', item.placa || '-', item.porteiro];
       case 'directors':
         return [item.nome, item.data, item.hora_entrada, item.hora_saida || '-', item.placa || '-', item.carro || '-', item.porteiro];
+      case 'carregamentos':
+        const fotosCarreg = item.fotos?.length || 0;
+        return [item.placa_carreta, item.placa_cavalo, item.motorista, item.empresa_terceirizada, item.destino, item.data, item.hora_entrada, item.hora_saida || '-', fotosCarreg > 0 ? `${fotosCarreg} foto(s)` : '-'];
       default:
         return [];
     }
@@ -132,37 +148,92 @@ const Reports = () => {
       visitors: 'Visitantes',
       fleet: 'Frota',
       employees: 'Funcionários',
-      directors: 'Diretoria'
+      directors: 'Diretoria',
+      carregamentos: 'Carregamentos'
     };
     return titles[activeTab];
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
   const exportPDF = () => {
-    const doc = new jsPDF();
-    const title = `Relatório de ${getTitle()}`;
-    const period = `Período: ${filters.data_inicio} a ${filters.data_fim}`;
+    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape for more space
+    const pageWidth = doc.internal.pageSize.getWidth();
     
-    doc.setFontSize(16);
-    doc.text(title, 14, 15);
+    // Header with corporate style
+    doc.setFillColor(26, 26, 26);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    
+    // Logo placeholder and company name
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CIPOLATTI', 14, 18);
+    
     doc.setFontSize(10);
-    doc.text(period, 14, 22);
-    doc.text(`Total de registros: ${total}`, 14, 28);
-    if (activeTab === 'fleet' && totalKm > 0) {
-      doc.text(`Total KM rodado: ${totalKm}`, 14, 34);
-    }
+    doc.setFont('helvetica', 'normal');
+    doc.text('Controle de Acesso', 14, 25);
     
+    // Report title
+    doc.setFontSize(14);
+    doc.text(`Relatório de ${getTitle()}`, pageWidth - 14, 18, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.text(`Período: ${formatDate(filters.data_inicio)} a ${formatDate(filters.data_fim)}`, pageWidth - 14, 25, { align: 'right' });
+    
+    // Stats bar
+    doc.setFillColor(38, 38, 38);
+    doc.rect(0, 35, pageWidth, 12, 'F');
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(10);
+    doc.text(`Total de registros: ${total}`, 14, 43);
+    if (activeTab === 'fleet' && totalKm > 0) {
+      doc.text(`Total KM rodado: ${totalKm} km`, 100, 43);
+    }
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageWidth - 14, 43, { align: 'right' });
+    
+    // Table
     const columns = getColumns();
     const rows = data.map(item => getRowData(item));
     
     doc.autoTable({
       head: [columns],
       body: rows,
-      startY: activeTab === 'fleet' ? 40 : 35,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [38, 38, 38] }
+      startY: 52,
+      styles: { 
+        fontSize: 8,
+        cellPadding: 3,
+        lineColor: [50, 50, 50],
+        lineWidth: 0.1
+      },
+      headStyles: { 
+        fillColor: [26, 26, 26],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold' }
+      },
+      didDrawPage: (data) => {
+        // Footer
+        doc.setFillColor(26, 26, 26);
+        doc.rect(0, doc.internal.pageSize.getHeight() - 12, pageWidth, 12, 'F');
+        doc.setTextColor(150, 150, 150);
+        doc.setFontSize(8);
+        doc.text('CIPOLATTI - Sistema de Controle de Acesso', 14, doc.internal.pageSize.getHeight() - 5);
+        doc.text(`Página ${data.pageNumber}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 5, { align: 'right' });
+      }
     });
     
-    doc.save(`relatorio_${activeTab}_${filters.data_inicio}_${filters.data_fim}.pdf`);
+    doc.save(`CIPOLATTI_Relatorio_${getTitle()}_${filters.data_inicio}_${filters.data_fim}.pdf`);
     toast.success('PDF gerado com sucesso');
   };
 
@@ -177,13 +248,22 @@ const Reports = () => {
       return obj;
     });
     
-    const ws = XLSX.utils.json_to_sheet(rows);
+    // Add header info
+    const headerRows = [
+      { [columns[0]]: 'CIPOLATTI - Controle de Acesso' },
+      { [columns[0]]: `Relatório de ${getTitle()}` },
+      { [columns[0]]: `Período: ${formatDate(filters.data_inicio)} a ${formatDate(filters.data_fim)}` },
+      { [columns[0]]: `Total: ${total} registros` },
+      { [columns[0]]: '' }
+    ];
+    
+    const ws = XLSX.utils.json_to_sheet([...headerRows, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, getTitle());
     
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(dataBlob, `relatorio_${activeTab}_${filters.data_inicio}_${filters.data_fim}.xlsx`);
+    saveAs(dataBlob, `CIPOLATTI_Relatorio_${getTitle()}_${filters.data_inicio}_${filters.data_fim}.xlsx`);
     toast.success('Excel gerado com sucesso');
   };
 
@@ -191,35 +271,320 @@ const Reports = () => {
     const columns = getColumns();
     const rows = data.map(item => getRowData(item));
     
+    // Check for photos in items
+    const hasPhotos = activeTab === 'fleet' || activeTab === 'carregamentos';
+    
     const printContent = `
+      <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório de ${getTitle()}</title>
+        <title>CIPOLATTI - Relatório de ${getTitle()}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          h1 { font-size: 18px; margin-bottom: 5px; }
-          .info { font-size: 12px; color: #666; margin-bottom: 15px; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th { background: #262626; color: white; padding: 8px; text-align: left; }
-          td { border-bottom: 1px solid #ddd; padding: 6px; }
-          tr:hover { background: #f5f5f5; }
+          @page { 
+            size: landscape; 
+            margin: 10mm; 
+          }
+          * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+          }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            color: #333;
+            font-size: 11px;
+          }
+          
+          /* Header */
+          .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0;
+          }
+          .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+          }
+          .logo {
+            width: 50px;
+            height: 50px;
+            background: #333;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: #fff;
+            border: 2px solid #444;
+          }
+          .company-name {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 2px;
+          }
+          .company-name span {
+            color: #e63946;
+          }
+          .company-subtitle {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 2px;
+          }
+          .report-info {
+            text-align: right;
+          }
+          .report-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+          }
+          .report-period {
+            font-size: 11px;
+            color: #aaa;
+          }
+          
+          /* Stats Bar */
+          .stats-bar {
+            background: #f5f5f5;
+            padding: 12px 25px;
+            display: flex;
+            gap: 40px;
+            border-bottom: 2px solid #1a1a1a;
+          }
+          .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .stat-label {
+            color: #666;
+            font-size: 10px;
+            text-transform: uppercase;
+          }
+          .stat-value {
+            font-weight: bold;
+            font-size: 14px;
+            color: #1a1a1a;
+          }
+          
+          /* Table */
+          .table-container {
+            padding: 15px 25px;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse;
+            font-size: 10px;
+          }
+          th { 
+            background: #1a1a1a; 
+            color: white; 
+            padding: 10px 8px; 
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+          }
+          td { 
+            border-bottom: 1px solid #e0e0e0; 
+            padding: 8px;
+            vertical-align: middle;
+          }
+          tr:nth-child(even) {
+            background: #fafafa;
+          }
+          tr:hover { 
+            background: #f0f0f0; 
+          }
+          td:first-child {
+            font-weight: 600;
+            color: #1a1a1a;
+          }
+          .photo-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 500;
+          }
+          .no-photo {
+            color: #999;
+          }
+          
+          /* Footer */
+          .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            color: #aaa;
+            padding: 8px 25px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+          }
+          
+          /* Photos Section */
+          .photos-section {
+            page-break-before: always;
+            padding: 25px;
+          }
+          .photos-section h2 {
+            font-size: 16px;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1a1a1a;
+          }
+          .photo-group {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+          }
+          .photo-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-left: 3px solid #1a1a1a;
+          }
+          .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+          }
+          .photo-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+          }
+          .photo-item img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+          }
+          .photo-caption {
+            font-size: 8px;
+            padding: 4px;
+            background: #f5f5f5;
+            text-align: center;
+            color: #666;
+          }
+          
+          @media print {
+            .footer {
+              position: fixed;
+              bottom: 0;
+            }
+          }
         </style>
       </head>
       <body>
-        <h1>Relatório de ${getTitle()}</h1>
-        <div class="info">
-          Período: ${filters.data_inicio} a ${filters.data_fim}<br>
-          Total de registros: ${total}
-          ${activeTab === 'fleet' && totalKm > 0 ? `<br>Total KM rodado: ${totalKm}` : ''}
+        <div class="header">
+          <div class="logo-section">
+            <div class="logo">C</div>
+            <div>
+              <div class="company-name">CIPO<span>LATTI</span></div>
+              <div class="company-subtitle">Controle de Acesso</div>
+            </div>
+          </div>
+          <div class="report-info">
+            <div class="report-title">Relatório de ${getTitle()}</div>
+            <div class="report-period">Período: ${formatDate(filters.data_inicio)} a ${formatDate(filters.data_fim)}</div>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr>${columns.map(col => `<th>${col}</th>`).join('')}</tr>
-          </thead>
-          <tbody>
-            ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
-          </tbody>
-        </table>
+        
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Total de Registros</span>
+            <span class="stat-value">${total}</span>
+          </div>
+          ${activeTab === 'fleet' && totalKm > 0 ? `
+          <div class="stat-item">
+            <span class="stat-label">Total KM Rodado</span>
+            <span class="stat-value">${totalKm} km</span>
+          </div>
+          ` : ''}
+          <div class="stat-item">
+            <span class="stat-label">Gerado em</span>
+            <span class="stat-value">${new Date().toLocaleString('pt-BR')}</span>
+          </div>
+        </div>
+        
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>${columns.map(col => `<th>${col}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${rows.map((row, idx) => `
+                <tr>
+                  ${row.map((cell, cellIdx) => {
+                    // Check if this is a photo column
+                    const isPhotoCol = columns[cellIdx] === 'Fotos';
+                    if (isPhotoCol && cell !== '-') {
+                      return `<td><span class="photo-indicator">📷 ${cell}</span></td>`;
+                    } else if (isPhotoCol) {
+                      return `<td class="no-photo">-</td>`;
+                    }
+                    return `<td>${cell}</td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        
+        ${hasPhotos ? `
+        <div class="photos-section">
+          <h2>Anexo: Registro Fotográfico</h2>
+          ${data.filter(item => (item.fotos?.length > 0) || (item.fotos_saida?.length > 0) || (item.fotos_retorno?.length > 0)).map(item => {
+            const identifier = activeTab === 'carregamentos' 
+              ? `${item.placa_carreta} / ${item.placa_cavalo} - ${item.motorista}`
+              : `${item.placa} - ${item.motorista}`;
+            
+            const photos = activeTab === 'carregamentos' 
+              ? (item.fotos || [])
+              : [...(item.fotos_saida || []), ...(item.fotos_retorno || [])];
+            
+            if (photos.length === 0) return '';
+            
+            const photoEndpoint = activeTab === 'carregamentos' ? 'carregamentos' : 'fleet';
+            
+            return `
+              <div class="photo-group">
+                <div class="photo-group-title">${identifier} - ${item.data || item.data_saida}</div>
+                <div class="photo-grid">
+                  ${photos.map(photo => `
+                    <div class="photo-item">
+                      <img src="${API}/api/${photoEndpoint}/${item.id}/photos/${photo.id}" alt="${photo.categoria || photo.category || 'Foto'}" onerror="this.style.display='none'" />
+                      <div class="photo-caption">${photo.categoria || photo.category || 'Geral'} - ${photo.moment || ''}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ` : ''}
+        
+        <div class="footer">
+          <div>CIPOLATTI - Sistema de Controle de Acesso Corporativo</div>
+          <div>Documento confidencial - Uso interno</div>
+        </div>
       </body>
       </html>
     `;
@@ -227,7 +592,11 @@ const Reports = () => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printContent);
     printWindow.document.close();
-    printWindow.print();
+    
+    // Wait for images to load before printing
+    setTimeout(() => {
+      printWindow.print();
+    }, 1500);
   };
 
   return (
@@ -252,6 +621,9 @@ const Reports = () => {
           </TabsTrigger>
           <TabsTrigger value="directors" className="data-[state=active]:bg-[#262626]" data-testid="tab-directors">
             Diretoria
+          </TabsTrigger>
+          <TabsTrigger value="carregamentos" className="data-[state=active]:bg-[#262626]" data-testid="tab-carregamentos">
+            Carregamentos
           </TabsTrigger>
         </TabsList>
 
@@ -278,75 +650,101 @@ const Reports = () => {
                 data-testid="report-data-fim"
               />
             </div>
-            <div>
-              <Label className="text-gray-400 text-xs">Nome</Label>
-              <Input
-                placeholder="Filtrar por nome"
-                value={filters.nome}
-                onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
-                className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-                data-testid="report-nome"
-              />
-            </div>
-            <div>
-              <Label className="text-gray-400 text-xs">Placa</Label>
-              <Input
-                placeholder="Filtrar por placa"
-                value={filters.placa}
-                onChange={(e) => setFilters({ ...filters, placa: e.target.value })}
-                className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
-                data-testid="report-placa"
-              />
-            </div>
-            {activeTab === 'fleet' && (
+            
+            {activeTab === 'visitors' && (
+              <>
+                <div>
+                  <Label className="text-gray-400 text-xs">Nome</Label>
+                  <Input
+                    value={filters.nome}
+                    onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
+                    placeholder="Filtrar por nome"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">Placa</Label>
+                  <Input
+                    value={filters.placa}
+                    onChange={(e) => setFilters({ ...filters, placa: e.target.value })}
+                    placeholder="Filtrar por placa"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                  />
+                </div>
+              </>
+            )}
+            
+            {(activeTab === 'fleet' || activeTab === 'carregamentos') && (
               <>
                 <div>
                   <Label className="text-gray-400 text-xs">Motorista</Label>
                   <Input
-                    placeholder="Filtrar por motorista"
                     value={filters.motorista}
                     onChange={(e) => setFilters({ ...filters, motorista: e.target.value })}
+                    placeholder="Filtrar por motorista"
                     className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-                    data-testid="report-motorista"
                   />
                 </div>
                 <div>
                   <Label className="text-gray-400 text-xs">Destino</Label>
                   <Input
-                    placeholder="Filtrar por destino"
                     value={filters.destino}
                     onChange={(e) => setFilters({ ...filters, destino: e.target.value })}
+                    placeholder="Filtrar por destino"
                     className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-                    data-testid="report-destino"
                   />
                 </div>
               </>
             )}
+            
             {activeTab === 'employees' && (
-              <div>
-                <Label className="text-gray-400 text-xs">Setor</Label>
-                <Input
-                  placeholder="Filtrar por setor"
-                  value={filters.setor}
-                  onChange={(e) => setFilters({ ...filters, setor: e.target.value })}
-                  className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-                  data-testid="report-setor"
-                />
-              </div>
+              <>
+                <div>
+                  <Label className="text-gray-400 text-xs">Nome</Label>
+                  <Input
+                    value={filters.nome}
+                    onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
+                    placeholder="Filtrar por nome"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">Setor</Label>
+                  <Input
+                    value={filters.setor}
+                    onChange={(e) => setFilters({ ...filters, setor: e.target.value })}
+                    placeholder="Filtrar por setor"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  />
+                </div>
+              </>
             )}
-            <div>
-              <Label className="text-gray-400 text-xs">Porteiro</Label>
-              <Input
-                placeholder="Filtrar por porteiro"
-                value={filters.porteiro}
-                onChange={(e) => setFilters({ ...filters, porteiro: e.target.value })}
-                className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
-                data-testid="report-porteiro"
-              />
-            </div>
+            
+            {activeTab === 'directors' && (
+              <>
+                <div>
+                  <Label className="text-gray-400 text-xs">Nome</Label>
+                  <Input
+                    value={filters.nome}
+                    onChange={(e) => setFilters({ ...filters, nome: e.target.value })}
+                    placeholder="Filtrar por nome"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">Placa</Label>
+                  <Input
+                    value={filters.placa}
+                    onChange={(e) => setFilters({ ...filters, placa: e.target.value })}
+                    placeholder="Filtrar por placa"
+                    className="bg-[#0A0A0A] border-[#262626] text-white mt-1 font-mono"
+                  />
+                </div>
+              </>
+            )}
           </div>
           
-          <div className="flex flex-wrap gap-3 mt-4">
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[#262626]">
             <Button 
               onClick={loadReport}
               disabled={loading}
@@ -403,6 +801,18 @@ const Reports = () => {
                   <span className="text-white font-mono font-medium">{totalKm} km</span>
                 </div>
               )}
+              {(activeTab === 'fleet' || activeTab === 'carregamentos') && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Camera size={16} className="text-green-500" />
+                  <span className="text-gray-400">
+                    {data.filter(item => 
+                      (item.fotos?.length > 0) || 
+                      (item.fotos_saida?.length > 0) || 
+                      (item.fotos_retorno?.length > 0)
+                    ).length} registros com fotos
+                  </span>
+                </div>
+              )}
             </div>
             
             <div className="overflow-x-auto">
@@ -417,18 +827,27 @@ const Reports = () => {
                 <TableBody>
                   {data.map((item, idx) => (
                     <TableRow key={idx} className="border-[#262626] hover:bg-[#1F1F1F]">
-                      {getRowData(item).map((cell, cellIdx) => (
-                        <TableCell 
-                          key={cellIdx} 
-                          className={`${cellIdx === 0 ? 'text-white font-medium' : 'text-gray-400'} ${
-                            (activeTab === 'fleet' && cellIdx === 0) || 
-                            (activeTab !== 'fleet' && getColumns()[cellIdx] === 'Placa') 
-                              ? 'font-mono' : ''
-                          }`}
-                        >
-                          {cell}
-                        </TableCell>
-                      ))}
+                      {getRowData(item).map((cell, cellIdx) => {
+                        const isPhotoCol = getColumns()[cellIdx] === 'Fotos';
+                        return (
+                          <TableCell 
+                            key={cellIdx} 
+                            className={`${cellIdx === 0 ? 'text-white font-medium' : 'text-gray-400'} ${
+                              (activeTab === 'fleet' && cellIdx === 0) || 
+                              (activeTab === 'carregamentos' && cellIdx <= 1) ||
+                              getColumns()[cellIdx] === 'Placa'
+                                ? 'font-mono' : ''
+                            }`}
+                          >
+                            {isPhotoCol && cell !== '-' ? (
+                              <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 px-2 py-1 rounded text-xs">
+                                <ImageIcon size={14} />
+                                {cell}
+                              </span>
+                            ) : cell}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -437,6 +856,7 @@ const Reports = () => {
           </div>
         )}
 
+        {/* Loading State */}
         {loading && (
           <div className="card-dark p-12 mt-4 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>

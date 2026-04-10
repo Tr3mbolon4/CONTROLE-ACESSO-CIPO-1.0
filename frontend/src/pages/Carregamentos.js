@@ -292,89 +292,243 @@ const Carregamentos = () => {
 
   const printMultiple = (items) => {
     const printContent = `
+      <!DOCTYPE html>
       <html>
       <head>
-        <title>Registro de Carregamentos - Cipolatti</title>
+        <title>Registro de Carregamentos - CIPOLATTI</title>
         <style>
-          @page { margin: 15mm; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; margin: 0; color: #333; }
-          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 15px; margin-bottom: 20px; }
-          .logo { font-size: 28px; font-weight: bold; color: #1a1a1a; }
-          .logo span { color: #e63946; }
-          .title { font-size: 18px; color: #666; }
-          .record { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-          .record-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-          .record-plates { font-size: 16px; font-weight: bold; color: #1a1a1a; font-family: monospace; }
-          .record-status { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+          @page { margin: 12mm; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #333; font-size: 11px; }
+          
+          /* Header Corporativo */
+          .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+          }
+          .logo-section { display: flex; align-items: center; gap: 15px; }
+          .logo-icon {
+            width: 45px; height: 45px;
+            background: #333;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 20px; color: #fff;
+            border: 2px solid #444;
+          }
+          .company-name { font-size: 26px; font-weight: bold; letter-spacing: 2px; }
+          .company-name span { color: #e63946; }
+          .company-subtitle { font-size: 10px; color: #aaa; margin-top: 2px; }
+          .header-info { text-align: right; }
+          .header-title { font-size: 14px; font-weight: 600; }
+          .header-date { font-size: 10px; color: #aaa; margin-top: 4px; }
+          
+          /* Record Cards */
+          .record {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+            overflow: hidden;
+          }
+          .record-header {
+            background: #f8f8f8;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+          }
+          .record-plates {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1a1a1a;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+          }
+          .record-status {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+          }
           .status-loading { background: #fef3c7; color: #92400e; }
           .status-done { background: #dcfce7; color: #166534; }
-          .fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+          
+          .record-body { padding: 15px; }
+          .fields {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+          }
+          .field { }
           .field-full { grid-column: span 2; }
-          .field-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
-          .field-value { font-size: 13px; color: #333; }
-          .field-value.mono { font-family: monospace; }
-          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #888; text-align: center; }
-          .photo-indicator { font-size: 11px; color: #666; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd; }
+          .field-label {
+            font-size: 9px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+          }
+          .field-value {
+            font-size: 12px;
+            color: #333;
+            font-weight: 500;
+          }
+          .field-value.mono {
+            font-family: 'Courier New', monospace;
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+          }
+          
+          /* Photos Section */
+          .photos-section {
+            border-top: 1px solid #eee;
+            padding: 15px;
+            background: #fafafa;
+          }
+          .photos-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .photos-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+          }
+          .photo-item {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            overflow: hidden;
+            background: white;
+          }
+          .photo-item img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            display: block;
+          }
+          .photo-caption {
+            font-size: 8px;
+            padding: 4px 6px;
+            background: #f0f0f0;
+            text-align: center;
+            color: #666;
+            text-transform: uppercase;
+          }
+          
+          /* Footer */
+          .footer {
+            margin-top: 30px;
+            padding: 15px 25px;
+            background: #1a1a1a;
+            color: #888;
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+          }
+          
+          @media print {
+            .record { page-break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
         <div class="header">
-          <div class="logo">CIPO<span>LATTI</span></div>
-          <div class="title">Registro de Carregamentos</div>
+          <div class="logo-section">
+            <div class="logo-icon">C</div>
+            <div>
+              <div class="company-name">CIPO<span>LATTI</span></div>
+              <div class="company-subtitle">Controle de Acesso</div>
+            </div>
+          </div>
+          <div class="header-info">
+            <div class="header-title">Registro de Carregamentos</div>
+            <div class="header-date">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+          </div>
         </div>
+        
         ${items.map(item => `
           <div class="record">
             <div class="record-header">
               <div class="record-plates">${item.placa_carreta} / ${item.placa_cavalo}</div>
               <div class="record-status ${item.status === 'em_carregamento' ? 'status-loading' : 'status-done'}">
-                ${item.status === 'em_carregamento' ? 'EM CARREGAMENTO' : 'FINALIZADO'}
+                ${item.status === 'em_carregamento' ? 'Em Carregamento' : 'Finalizado'}
               </div>
             </div>
-            <div class="fields">
-              <div class="field">
-                <div class="field-label">Motorista</div>
-                <div class="field-value">${item.motorista}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Empresa</div>
-                <div class="field-value">${item.empresa_terceirizada}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Destino</div>
-                <div class="field-value">${item.destino}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Cubagem</div>
-                <div class="field-value">${item.cubagem || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Data</div>
-                <div class="field-value">${item.data}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Entrada</div>
-                <div class="field-value mono">${item.hora_entrada}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Saída</div>
-                <div class="field-value mono">${item.hora_saida || '-'}</div>
-              </div>
-              <div class="field">
-                <div class="field-label">Porteiro</div>
-                <div class="field-value">${item.porteiro_entrada}</div>
-              </div>
-              ${item.observacao ? `
-                <div class="field field-full">
-                  <div class="field-label">Observação</div>
-                  <div class="field-value">${item.observacao}</div>
+            <div class="record-body">
+              <div class="fields">
+                <div class="field">
+                  <div class="field-label">Motorista</div>
+                  <div class="field-value">${item.motorista}</div>
                 </div>
-              ` : ''}
+                <div class="field">
+                  <div class="field-label">Empresa</div>
+                  <div class="field-value">${item.empresa_terceirizada}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Destino</div>
+                  <div class="field-value">${item.destino}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Cubagem</div>
+                  <div class="field-value">${item.cubagem || '-'}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Data</div>
+                  <div class="field-value">${item.data}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Entrada</div>
+                  <div class="field-value mono">${item.hora_entrada}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Saída</div>
+                  <div class="field-value mono">${item.hora_saida || '-'}</div>
+                </div>
+                <div class="field">
+                  <div class="field-label">Porteiro</div>
+                  <div class="field-value">${item.porteiro_entrada}</div>
+                </div>
+                ${item.observacao ? `
+                  <div class="field field-full">
+                    <div class="field-label">Observação</div>
+                    <div class="field-value">${item.observacao}</div>
+                  </div>
+                ` : ''}
+              </div>
             </div>
-            ${item.fotos?.length > 0 ? `<div class="photo-indicator">📷 ${item.fotos.length} foto(s) vinculada(s)</div>` : ''}
+            ${item.fotos?.length > 0 ? `
+              <div class="photos-section">
+                <div class="photos-title">📷 Registro Fotográfico (${item.fotos.length} fotos)</div>
+                <div class="photos-grid">
+                  ${item.fotos.map(photo => `
+                    <div class="photo-item">
+                      <img src="${API}/api/carregamentos/${item.id}/photos/${photo.id}" alt="${photo.categoria}" onerror="this.parentElement.style.display='none'" />
+                      <div class="photo-caption">${photo.categoria || 'Geral'}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
         `).join('')}
+        
         <div class="footer">
-          Documento gerado em ${new Date().toLocaleString('pt-BR')} | Sistema de Controle de Acesso - Cipolatti
+          <div>CIPOLATTI - Sistema de Controle de Acesso Corporativo</div>
+          <div>Documento confidencial - Uso interno</div>
         </div>
       </body>
       </html>
@@ -382,7 +536,10 @@ const Carregamentos = () => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printContent);
     printWindow.document.close();
-    printWindow.print();
+    // Aguarda carregamento das imagens antes de imprimir
+    setTimeout(() => {
+      printWindow.print();
+    }, 1500);
   };
 
   const handlePrint = (item) => {
