@@ -136,6 +136,7 @@ const Agendamentos = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      console.log('Enviando formData:', formData);
       if (selectedAgendamento) {
         await agendamentosAPI.update(selectedAgendamento.id, formData);
         toast.success('Agendamento atualizado');
@@ -148,6 +149,8 @@ const Agendamentos = () => {
       loadAgendamentos();
     } catch (error) {
       console.error('Erro completo:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
       const errorDetail = error.response?.data?.detail;
       
       let message = 'Erro ao salvar agendamento';

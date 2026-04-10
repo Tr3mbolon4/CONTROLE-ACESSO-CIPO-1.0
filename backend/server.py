@@ -1443,6 +1443,8 @@ async def create_agendamento(data: AgendamentoCreate, request: Request):
     user = await get_current_user(request)
     await check_role(user, ["admin", "gestor", "dsl", "portaria"])
     
+    print(f"DEBUG - Recebendo agendamento: {data.model_dump()}")
+    
     now = get_brazil_now()
     doc = {
         "tipo": data.tipo,
