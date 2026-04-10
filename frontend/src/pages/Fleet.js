@@ -577,14 +577,20 @@ const Fleet = () => {
       const totalImages = images.length;
       
       if (totalImages === 0) {
-        setTimeout(() => printWindow.print(), 500);
+        setTimeout(() => {
+          printWindow.print();
+          setTimeout(() => printWindow.close(), 1000);
+        }, 500);
         return;
       }
       
       const checkAllLoaded = () => {
         loadedImages++;
         if (loadedImages === totalImages) {
-          setTimeout(() => printWindow.print(), 1000);
+          setTimeout(() => {
+            printWindow.print();
+            setTimeout(() => printWindow.close(), 1000);
+          }, 1000);
         }
       };
       
@@ -602,8 +608,14 @@ const Fleet = () => {
         if (loadedImages < totalImages) {
           console.warn(`Imprimindo com ${loadedImages}/${totalImages} imagens carregadas`);
           printWindow.print();
+          setTimeout(() => printWindow.close(), 1000);
         }
       }, 5000);
+    };
+    
+    // Listener para detectar quando o usuário cancela ou completa a impressão
+    printWindow.onafterprint = function() {
+      printWindow.close();
     };
   };
 

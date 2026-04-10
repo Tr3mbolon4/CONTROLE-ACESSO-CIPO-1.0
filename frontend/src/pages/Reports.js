@@ -634,7 +634,10 @@ const Reports = () => {
       
       if (totalImages === 0) {
         // Se não há imagens, imprime imediatamente
-        setTimeout(() => printWindow.print(), 500);
+        setTimeout(() => {
+          printWindow.print();
+          setTimeout(() => printWindow.close(), 1000);
+        }, 500);
         return;
       }
       
@@ -644,7 +647,10 @@ const Reports = () => {
         if (loadedImages === totalImages) {
           // Todas as imagens carregadas, aguarda mais um pouco e imprime
           console.log('Todas as imagens carregadas, imprimindo...');
-          setTimeout(() => printWindow.print(), 1000);
+          setTimeout(() => {
+            printWindow.print();
+            setTimeout(() => printWindow.close(), 1000);
+          }, 1000);
         }
       };
       
@@ -665,8 +671,14 @@ const Reports = () => {
         if (loadedImages < totalImages) {
           console.warn(`Timeout: Imprimindo com ${loadedImages}/${totalImages} imagens carregadas`);
           printWindow.print();
+          setTimeout(() => printWindow.close(), 1000);
         }
       }, 8000);
+    };
+    
+    // Listener para detectar quando o usuário cancela ou completa a impressão
+    printWindow.onafterprint = function() {
+      printWindow.close();
     };
   };
 

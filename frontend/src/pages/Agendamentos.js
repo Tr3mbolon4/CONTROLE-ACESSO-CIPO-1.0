@@ -147,7 +147,24 @@ const Agendamentos = () => {
       resetForm();
       loadAgendamentos();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao salvar');
+      console.error('Erro completo:', error);
+      const errorDetail = error.response?.data?.detail;
+      
+      let message = 'Erro ao salvar agendamento';
+      
+      if (typeof errorDetail === 'string') {
+        message = errorDetail;
+      } else if (Array.isArray(errorDetail)) {
+        // Pydantic retorna array de erros de validação
+        message = errorDetail.map(err => {
+          const field = err.loc ? err.loc[err.loc.length - 1] : 'campo';
+          return `${field}: ${err.msg}`;
+        }).join(', ');
+      } else if (typeof errorDetail === 'object') {
+        message = JSON.stringify(errorDetail);
+      }
+      
+      toast.error(message);
     }
   };
 
